@@ -498,6 +498,18 @@ class CT_TextParagraphProperties(BaseOxmlElement):
     spcAft: CT_TextSpacing | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
         "a:spcAft", successors=_tag_seq[3:]
     )
+    buFont: BaseOxmlElement | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
+        "a:buFont", successors=_tag_seq[10:]
+    )
+    eg_buTypeface = ZeroOrOneChoice(
+        (
+            Choice("a:buNone"),
+            Choice("a:buAutoNum"),
+            Choice("a:buChar"),
+            Choice("a:buBlip"),
+        ),
+        successors=_tag_seq[14:],
+    )
     defRPr: CT_TextCharacterProperties | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
         "a:defRPr", successors=_tag_seq[16:]
     )
