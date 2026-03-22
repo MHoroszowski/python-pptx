@@ -7,6 +7,7 @@ from __future__ import annotations
 import pytest
 
 from pptx.dml.fill import FillFormat
+from pptx.dml.line import LineFormat
 from pptx.enum.text import MSO_ANCHOR
 from pptx.oxml.ns import qn
 from pptx.oxml.table import CT_Table, CT_TableCell, TcRange
@@ -14,6 +15,7 @@ from pptx.shapes.graphfrm import GraphicFrame
 from pptx.table import (
     Table,
     _Cell,
+    _CellBorders,
     _CellCollection,
     _Column,
     _ColumnCollection,
@@ -206,6 +208,38 @@ class Describe_Cell(object):
 
         assert cell == cell_with_same_tc
         assert cell != cell_with_other_tc
+
+    def it_provides_access_to_its_borders(self):
+        tc = element("a:tc/a:tcPr")
+        cell = _Cell(tc, None)
+        borders = cell.borders
+        assert isinstance(borders, _CellBorders)
+        assert isinstance(borders.left, LineFormat)
+        assert isinstance(borders.right, LineFormat)
+        assert isinstance(borders.top, LineFormat)
+        assert isinstance(borders.bottom, LineFormat)
+
+    @pytest.mark.parametrize(
+        ("tc_cxml", "edge", "expected_width"),
+        [
+            ("a:tc/a:tcPr", "left", 0),
+            ("a:tc/a:tcPr/a:lnL{w=25400}", "left", 25400),
+            ("a:tc/a:tcPr/a:lnR{w=12700}", "right", 12700),
+            ("a:tc/a:tcPr/a:lnT{w=38100}", "top", 38100),
+            ("a:tc/a:tcPr/a:lnB{w=6350}", "bottom", 6350),
+        ],
+    )
+    def it_can_read_border_width(self, tc_cxml: str, edge: str, expected_width: int):
+        cell = _Cell(element(tc_cxml), None)
+        border_line = getattr(cell.borders, edge)
+        assert border_line.width == expected_width
+
+    def it_can_set_a_border_width(self):
+        tc = element("a:tc/a:tcPr")
+        cell = _Cell(tc, None)
+        cell.borders.top.width = Pt(2)
+        assert cell._tc.tcPr.lnT is not None
+        assert cell._tc.tcPr.lnT.w == Pt(2)
 
     def it_has_a_fill(self, fill_fixture):
         cell = fill_fixture
