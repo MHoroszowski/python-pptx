@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 
 from pptx.dml.fill import CT_GradientFillProperties
-from pptx.enum.dml import MSO_LINE_END_SIZE, MSO_LINE_END_TYPE
+from pptx.enum.dml import MSO_LINE_CAP_STYLE, MSO_LINE_END_SIZE, MSO_LINE_END_TYPE
 from pptx.enum.shapes import PP_PLACEHOLDER
 from pptx.oxml.ns import qn
 from pptx.oxml.simpletypes import (
@@ -290,8 +290,19 @@ class CT_LineProperties(BaseOxmlElement):
     tailEnd: CT_LineEndProperties | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
         "a:tailEnd", successors=_tag_seq[11:]
     )
+    eg_lineJoinProperties = ZeroOrOneChoice(
+        (
+            Choice("a:round"),
+            Choice("a:bevel"),
+            Choice("a:miter"),
+        ),
+        successors=_tag_seq[9:],
+    )
     del _tag_seq
     w = OptionalAttribute("w", ST_LineWidth, default=Emu(0))
+    cap: MSO_LINE_CAP_STYLE | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "cap", MSO_LINE_CAP_STYLE
+    )
 
     @property
     def eg_fillProperties(self):
