@@ -309,6 +309,36 @@ class DescribeSlide(object):
         _BaseSlide_background_.assert_called_once_with()
         assert background is background_
 
+    @pytest.mark.parametrize(
+        ("sld_cxml", "expected_value"),
+        [
+            ("p:sld/p:cSld", False),
+            ("p:sld{show=1}/p:cSld", False),
+            ("p:sld{show=0}/p:cSld", True),
+            ("p:sld{show=false}/p:cSld", True),
+            ("p:sld{show=true}/p:cSld", False),
+        ],
+    )
+    def it_knows_whether_it_is_hidden(self, sld_cxml: str, expected_value: bool):
+        slide = Slide(element(sld_cxml), None)
+        assert slide.is_hidden is expected_value
+
+    @pytest.mark.parametrize(
+        ("sld_cxml", "new_value", "expected_cxml"),
+        [
+            ("p:sld/p:cSld", True, "p:sld{show=0}/p:cSld"),
+            ("p:sld/p:cSld", False, "p:sld/p:cSld"),
+            ("p:sld{show=0}/p:cSld", False, "p:sld/p:cSld"),
+            ("p:sld{show=0}/p:cSld", True, "p:sld{show=0}/p:cSld"),
+        ],
+    )
+    def it_can_change_whether_it_is_hidden(
+        self, sld_cxml: str, new_value: bool, expected_cxml: str
+    ):
+        slide = Slide(element(sld_cxml), None)
+        slide.is_hidden = new_value
+        assert slide._element.xml == xml(expected_cxml)
+
     def it_knows_whether_it_follows_the_mstr_bkgd(self, follow_get_fixture):
         slide, expected_value = follow_get_fixture
         follows = slide.follow_master_background
