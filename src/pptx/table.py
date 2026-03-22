@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Iterator
 
 from pptx.dml.fill import FillFormat
+from pptx.dml.line import LineFormat
 from pptx.oxml.table import TcRange
 from pptx.shapes import Subshape
 from pptx.text.text import TextFrame
@@ -165,6 +166,62 @@ class Table(object):
         self._tbl.bandCol = value
 
 
+class _BorderEdge:
+    """Adapter providing a `LineFormat`-compatible interface for one edge of a cell border.
+
+    `LineFormat` requires a parent with `.ln` and `.get_or_add_ln()`. This adapter delegates those
+    to the appropriate border element (`a:lnL`, `a:lnR`, `a:lnT`, `a:lnB`) on `a:tcPr`.
+    """
+
+    def __init__(self, tc: CT_TableCell, edge_attr: str):
+        self._tc = tc
+        self._edge_attr = edge_attr  # e.g. "lnL", "lnR", "lnT", "lnB"
+
+    @property
+    def ln(self):
+        """Return the `a:lnX` element or None."""
+        tcPr = self._tc.tcPr
+        if tcPr is None:
+            return None
+        return getattr(tcPr, self._edge_attr)
+
+    def get_or_add_ln(self):
+        """Return the `a:lnX` element, creating `a:tcPr` and the element if not present."""
+        tcPr = self._tc.get_or_add_tcPr()
+        return getattr(tcPr, f"get_or_add_{self._edge_attr}")()
+
+
+class _CellBorders:
+    """Provides access to border line formatting for each edge of a table cell.
+
+    Accessed via `cell.borders`. Each edge (`.left`, `.right`, `.top`, `.bottom`) returns a
+    |LineFormat| object that controls the border's color, width, and dash style.
+    """
+
+    def __init__(self, tc: CT_TableCell):
+        self._tc = tc
+
+    @lazyproperty
+    def bottom(self) -> LineFormat:
+        """|LineFormat| for the bottom border of this cell."""
+        return LineFormat(_BorderEdge(self._tc, "lnB"))
+
+    @lazyproperty
+    def left(self) -> LineFormat:
+        """|LineFormat| for the left border of this cell."""
+        return LineFormat(_BorderEdge(self._tc, "lnL"))
+
+    @lazyproperty
+    def right(self) -> LineFormat:
+        """|LineFormat| for the right border of this cell."""
+        return LineFormat(_BorderEdge(self._tc, "lnR"))
+
+    @lazyproperty
+    def top(self) -> LineFormat:
+        """|LineFormat| for the top border of this cell."""
+        return LineFormat(_BorderEdge(self._tc, "lnT"))
+
+
 class _Cell(Subshape):
     """Table cell"""
 
@@ -186,6 +243,21 @@ class _Cell(Subshape):
         if not isinstance(other, type(self)):
             return True
         return self._tc is not other._tc
+
+    @lazyproperty
+    def borders(self) -> _CellBorders:
+        """|_CellBorders| instance for this cell.
+
+        Provides access to the line formatting for each border edge. Each edge (`.left`, `.right`,
+        `.top`, `.bottom`) is a |LineFormat| object.
+
+        Example::
+
+            cell.borders.top.width = Pt(2)
+            cell.borders.top.color.rgb = RGBColor(0xFF, 0x00, 0x00)
+            cell.borders.bottom.dash_style = MSO_LINE.DASH
+        """
+        return _CellBorders(self._tc)
 
     @lazyproperty
     def fill(self) -> FillFormat:
