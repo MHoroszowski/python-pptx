@@ -5,7 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from pptx.dml.fill import FillFormat
-from pptx.enum.dml import MSO_FILL, MSO_LINE_END_SIZE, MSO_LINE_END_TYPE
+from pptx.enum.dml import (
+    MSO_FILL,
+    MSO_LINE_CAP_STYLE,
+    MSO_LINE_END_SIZE,
+    MSO_LINE_END_TYPE,
+    MSO_LINE_JOIN_STYLE,
+)
 from pptx.util import Emu, lazyproperty
 
 if TYPE_CHECKING:
@@ -86,6 +92,23 @@ class LineFormat(object):
             return
         self._get_or_add_headEnd().w = value
 
+    @property
+    def cap_style(self) -> MSO_LINE_CAP_STYLE | None:
+        """Cap style for this line.
+
+        Read/write. Returns a member of :ref:`MsoLineCapStyle` or |None| if no explicit value
+        has been set. Assigning |None| removes any existing value.
+        """
+        ln = self._ln
+        if ln is None:
+            return None
+        return ln.cap
+
+    @cap_style.setter
+    def cap_style(self, value: MSO_LINE_CAP_STYLE | None) -> None:
+        ln = self._get_or_add_ln()
+        ln.cap = value
+
     @lazyproperty
     def color(self):
         """
@@ -162,6 +185,36 @@ class LineFormat(object):
                 del tailEnd.attrib["w"]
             return
         self._get_or_add_tailEnd().w = value
+
+    @property
+    def join_style(self) -> MSO_LINE_JOIN_STYLE | None:
+        """Join style for this line.
+
+        Read/write. Returns a member of :ref:`MsoLineJoinStyle` or |None| if no explicit value
+        has been set. Assigning |None| removes any existing value.
+        """
+        ln = self._ln
+        if ln is None:
+            return None
+        join = ln.eg_lineJoinProperties
+        if join is None:
+            return None
+        tag_name = join.tag.split("}")[-1]
+        return {"round": MSO_LINE_JOIN_STYLE.ROUND, "bevel": MSO_LINE_JOIN_STYLE.BEVEL,
+                "miter": MSO_LINE_JOIN_STYLE.MITER}[tag_name]
+
+    @join_style.setter
+    def join_style(self, value: MSO_LINE_JOIN_STYLE | None) -> None:
+        ln = self._get_or_add_ln()
+        if value is None:
+            ln._remove_eg_lineJoinProperties()
+            return
+        method_map = {
+            MSO_LINE_JOIN_STYLE.ROUND: "get_or_change_to_round",
+            MSO_LINE_JOIN_STYLE.BEVEL: "get_or_change_to_bevel",
+            MSO_LINE_JOIN_STYLE.MITER: "get_or_change_to_miter",
+        }
+        getattr(ln, method_map[value])()
 
     @property
     def dash_style(self):

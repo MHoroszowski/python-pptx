@@ -196,6 +196,50 @@ class MSO_LINE_END_SIZE(BaseXmlEnum):
     """A large arrowhead."""
 
 
+class MSO_LINE_CAP_STYLE(BaseXmlEnum):
+    """Specifies the cap style for a line.
+
+    Example::
+
+        from pptx.enum.dml import MSO_LINE_CAP_STYLE
+
+        shape.line.cap_style = MSO_LINE_CAP_STYLE.ROUND
+
+    MS API name: `MsoLineCap` (not in MS API, maps to DrawingML `ST_LineCap`)
+    """
+
+    FLAT = (1, "flat", "A flat cap at the end of a line.")
+    """A flat cap at the end of a line."""
+
+    ROUND = (2, "rnd", "A round cap at the end of a line.")
+    """A round cap at the end of a line."""
+
+    SQUARE = (3, "sq", "A square cap at the end of a line.")
+    """A square cap at the end of a line."""
+
+
+class MSO_LINE_JOIN_STYLE(BaseXmlEnum):
+    """Specifies the join style for a line.
+
+    Example::
+
+        from pptx.enum.dml import MSO_LINE_JOIN_STYLE
+
+        shape.line.join_style = MSO_LINE_JOIN_STYLE.MITER
+
+    MS API name: Not directly in MS API, maps to DrawingML `EG_LineJoinProperties`.
+    """
+
+    ROUND = (1, "round", "A round join between two lines.")
+    """A round join between two lines."""
+
+    BEVEL = (2, "bevel", "A bevel join between two lines.")
+    """A bevel join between two lines."""
+
+    MITER = (3, "miter", "A miter join between two lines.")
+    """A miter join between two lines."""
+
+
 class MSO_PATTERN_TYPE(BaseXmlEnum):
     """Specifies the fill pattern used in a shape.
 
