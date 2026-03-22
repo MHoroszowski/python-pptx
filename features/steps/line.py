@@ -6,7 +6,7 @@ from behave import given, then, when
 from helpers import test_pptx
 
 from pptx import Presentation
-from pptx.enum.dml import MSO_LINE
+from pptx.enum.dml import MSO_LINE, MSO_LINE_END_TYPE
 from pptx.util import Length, Pt
 
 # given ===================================================
@@ -22,6 +22,20 @@ def given_a_LineFormat_object_as_line(context):
 def given_a_LineFormat_object_as_line_having_dash_style(context, current):
     shape_idx = {"no explicit": 0, "solid": 1, "dashed": 2, "dash-dot": 3}[current]
     shape = Presentation(test_pptx("dml-line")).slides[3].shapes[shape_idx]
+    context.line = shape.line
+
+
+@given("a LineFormat object as line having {arrowhead} end arrowhead")
+def given_a_LineFormat_object_as_line_having_end_arrowhead(context, arrowhead):
+    shape_idx = {"no explicit": 0, "triangle": 1}[arrowhead]
+    shape = Presentation(test_pptx("dml-line-end")).slides[0].shapes[shape_idx]
+    context.line = shape.line
+
+
+@given("a LineFormat object as line having {arrowhead} begin arrowhead")
+def given_a_LineFormat_object_as_line_having_begin_arrowhead(context, arrowhead):
+    shape_idx = {"no explicit": 0, "stealth": 2}[arrowhead]
+    shape = Presentation(test_pptx("dml-line-end")).slides[0].shapes[shape_idx]
     context.line = shape.line
 
 
@@ -45,6 +59,16 @@ def when_I_assign_value_to_line_dash_style(context, value_key):
         "MSO_LINE.SOLID": MSO_LINE.SOLID,
     }[value_key]
     context.line.dash_style = value
+
+
+@when("I assign {value_key} to line.end_arrowhead_style")
+def when_I_assign_value_to_line_end_arrowhead_style(context, value_key):
+    value = {
+        "None": None,
+        "MSO_LINE_END_TYPE.TRIANGLE": MSO_LINE_END_TYPE.TRIANGLE,
+        "MSO_LINE_END_TYPE.STEALTH": MSO_LINE_END_TYPE.STEALTH,
+    }[value_key]
+    context.line.end_arrowhead_style = value
 
 
 @when("I assign {line_width} to line.width")
@@ -79,6 +103,27 @@ def then_line_dash_style_is_value(context, dash_style):
         expected_value,
         actual_value,
     )
+
+
+@then("line.end_arrowhead_style is {value_key}")
+def then_line_end_arrowhead_style_is_value(context, value_key):
+    expected_value = {
+        "None": None,
+        "MSO_LINE_END_TYPE.TRIANGLE": MSO_LINE_END_TYPE.TRIANGLE,
+        "MSO_LINE_END_TYPE.STEALTH": MSO_LINE_END_TYPE.STEALTH,
+    }[value_key]
+    actual_value = context.line.end_arrowhead_style
+    assert actual_value == expected_value, "expected %s, got %s" % (expected_value, actual_value)
+
+
+@then("line.begin_arrowhead_style is {value_key}")
+def then_line_begin_arrowhead_style_is_value(context, value_key):
+    expected_value = {
+        "None": None,
+        "MSO_LINE_END_TYPE.STEALTH": MSO_LINE_END_TYPE.STEALTH,
+    }[value_key]
+    actual_value = context.line.begin_arrowhead_style
+    assert actual_value == expected_value, "expected %s, got %s" % (expected_value, actual_value)
 
 
 @then("line.fill is a FillFormat object")

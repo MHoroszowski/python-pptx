@@ -7,7 +7,7 @@ import pytest
 from pptx.dml.color import ColorFormat
 from pptx.dml.fill import FillFormat
 from pptx.dml.line import LineFormat
-from pptx.enum.dml import MSO_FILL, MSO_LINE
+from pptx.enum.dml import MSO_FILL, MSO_LINE, MSO_LINE_END_SIZE, MSO_LINE_END_TYPE
 from pptx.oxml.shapes.shared import CT_LineProperties
 from pptx.shapes.autoshape import Shape
 
@@ -17,6 +17,161 @@ from ..unitutil.mock import call, class_mock, instance_mock, property_mock
 
 
 class DescribeLineFormat(object):
+    @pytest.mark.parametrize(
+        ("spPr_cxml", "expected_value"),
+        [
+            ("p:spPr", None),
+            ("p:spPr/a:ln", None),
+            ("p:spPr/a:ln/a:headEnd", None),
+            ("p:spPr/a:ln/a:headEnd{type=triangle}", MSO_LINE_END_TYPE.TRIANGLE),
+            ("p:spPr/a:ln/a:headEnd{type=stealth}", MSO_LINE_END_TYPE.STEALTH),
+        ],
+    )
+    def it_knows_its_begin_arrowhead_style(
+        self, spPr_cxml: str, expected_value: MSO_LINE_END_TYPE | None
+    ):
+        line = LineFormat(element(spPr_cxml))
+        assert line.begin_arrowhead_style == expected_value
+
+    @pytest.mark.parametrize(
+        ("spPr_cxml", "value", "expected_cxml"),
+        [
+            (
+                "p:spPr{a:b=c}",
+                MSO_LINE_END_TYPE.TRIANGLE,
+                "p:spPr{a:b=c}/a:ln/a:headEnd{type=triangle}",
+            ),
+            (
+                "p:spPr/a:ln/a:headEnd{type=triangle}",
+                MSO_LINE_END_TYPE.STEALTH,
+                "p:spPr/a:ln/a:headEnd{type=stealth}",
+            ),
+            (
+                "p:spPr/a:ln/a:headEnd{type=triangle}",
+                None,
+                "p:spPr/a:ln/a:headEnd",
+            ),
+        ],
+    )
+    def it_can_change_its_begin_arrowhead_style(
+        self, spPr_cxml: str, value: MSO_LINE_END_TYPE | None, expected_cxml: str
+    ):
+        spPr = element(spPr_cxml)
+        LineFormat(spPr).begin_arrowhead_style = value
+        assert spPr.xml == xml(expected_cxml)
+
+    @pytest.mark.parametrize(
+        ("spPr_cxml", "expected_value"),
+        [
+            ("p:spPr", None),
+            ("p:spPr/a:ln/a:headEnd", None),
+            ("p:spPr/a:ln/a:headEnd{w=sm}", MSO_LINE_END_SIZE.SMALL),
+            ("p:spPr/a:ln/a:headEnd{w=lg}", MSO_LINE_END_SIZE.LARGE),
+        ],
+    )
+    def it_knows_its_begin_arrowhead_width(
+        self, spPr_cxml: str, expected_value: MSO_LINE_END_SIZE | None
+    ):
+        line = LineFormat(element(spPr_cxml))
+        assert line.begin_arrowhead_width == expected_value
+
+    @pytest.mark.parametrize(
+        ("spPr_cxml", "expected_value"),
+        [
+            ("p:spPr", None),
+            ("p:spPr/a:ln/a:headEnd", None),
+            ("p:spPr/a:ln/a:headEnd{len=sm}", MSO_LINE_END_SIZE.SMALL),
+            ("p:spPr/a:ln/a:headEnd{len=med}", MSO_LINE_END_SIZE.MEDIUM),
+        ],
+    )
+    def it_knows_its_begin_arrowhead_length(
+        self, spPr_cxml: str, expected_value: MSO_LINE_END_SIZE | None
+    ):
+        line = LineFormat(element(spPr_cxml))
+        assert line.begin_arrowhead_length == expected_value
+
+    @pytest.mark.parametrize(
+        ("spPr_cxml", "expected_value"),
+        [
+            ("p:spPr", None),
+            ("p:spPr/a:ln", None),
+            ("p:spPr/a:ln/a:tailEnd", None),
+            ("p:spPr/a:ln/a:tailEnd{type=triangle}", MSO_LINE_END_TYPE.TRIANGLE),
+            ("p:spPr/a:ln/a:tailEnd{type=diamond}", MSO_LINE_END_TYPE.DIAMOND),
+        ],
+    )
+    def it_knows_its_end_arrowhead_style(
+        self, spPr_cxml: str, expected_value: MSO_LINE_END_TYPE | None
+    ):
+        line = LineFormat(element(spPr_cxml))
+        assert line.end_arrowhead_style == expected_value
+
+    @pytest.mark.parametrize(
+        ("spPr_cxml", "value", "expected_cxml"),
+        [
+            (
+                "p:spPr{a:b=c}",
+                MSO_LINE_END_TYPE.OVAL,
+                "p:spPr{a:b=c}/a:ln/a:tailEnd{type=oval}",
+            ),
+            (
+                "p:spPr/a:ln/a:tailEnd{type=diamond}",
+                MSO_LINE_END_TYPE.TRIANGLE,
+                "p:spPr/a:ln/a:tailEnd{type=triangle}",
+            ),
+            (
+                "p:spPr/a:ln/a:tailEnd{type=triangle}",
+                None,
+                "p:spPr/a:ln/a:tailEnd",
+            ),
+        ],
+    )
+    def it_can_change_its_end_arrowhead_style(
+        self, spPr_cxml: str, value: MSO_LINE_END_TYPE | None, expected_cxml: str
+    ):
+        spPr = element(spPr_cxml)
+        LineFormat(spPr).end_arrowhead_style = value
+        assert spPr.xml == xml(expected_cxml)
+
+    @pytest.mark.parametrize(
+        ("spPr_cxml", "value", "expected_cxml"),
+        [
+            (
+                "p:spPr{a:b=c}",
+                MSO_LINE_END_SIZE.LARGE,
+                "p:spPr{a:b=c}/a:ln/a:tailEnd{w=lg}",
+            ),
+            (
+                "p:spPr/a:ln/a:tailEnd{w=sm}",
+                MSO_LINE_END_SIZE.MEDIUM,
+                "p:spPr/a:ln/a:tailEnd{w=med}",
+            ),
+        ],
+    )
+    def it_can_change_its_end_arrowhead_width(
+        self, spPr_cxml: str, value: MSO_LINE_END_SIZE | None, expected_cxml: str
+    ):
+        spPr = element(spPr_cxml)
+        LineFormat(spPr).end_arrowhead_width = value
+        assert spPr.xml == xml(expected_cxml)
+
+    @pytest.mark.parametrize(
+        ("spPr_cxml", "value", "expected_cxml"),
+        [
+            (
+                "p:spPr{a:b=c}",
+                MSO_LINE_END_SIZE.SMALL,
+                "p:spPr{a:b=c}/a:ln/a:tailEnd{len=sm}",
+            ),
+        ],
+    )
+    def it_can_change_its_end_arrowhead_length(
+        self, spPr_cxml: str, value: MSO_LINE_END_SIZE | None, expected_cxml: str
+    ):
+        spPr = element(spPr_cxml)
+        LineFormat(spPr).end_arrowhead_length = value
+        assert spPr.xml == xml(expected_cxml)
+
     def it_knows_its_dash_style(self, dash_style_get_fixture):
         line, expected_value = dash_style_get_fixture
         assert line.dash_style == expected_value

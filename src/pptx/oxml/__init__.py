@@ -370,6 +370,7 @@ register_element_cls("p:pic", CT_Picture)
 
 from pptx.oxml.shapes.shared import (  # noqa: E402
     CT_ApplicationNonVisualDrawingProps,
+    CT_LineEndProperties,
     CT_LineProperties,
     CT_NonVisualDrawingProps,
     CT_Placeholder,
@@ -382,8 +383,10 @@ from pptx.oxml.shapes.shared import (  # noqa: E402
 register_element_cls("a:chExt", CT_PositiveSize2D)
 register_element_cls("a:chOff", CT_Point2D)
 register_element_cls("a:ext", CT_PositiveSize2D)
+register_element_cls("a:headEnd", CT_LineEndProperties)
 register_element_cls("a:ln", CT_LineProperties)
 register_element_cls("a:off", CT_Point2D)
+register_element_cls("a:tailEnd", CT_LineEndProperties)
 register_element_cls("a:xfrm", CT_Transform2D)
 register_element_cls("c:spPr", CT_ShapeProperties)
 register_element_cls("p:cNvPr", CT_NonVisualDrawingProps)
