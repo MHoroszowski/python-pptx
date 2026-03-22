@@ -139,6 +139,63 @@ class MSO_LINE_DASH_STYLE(BaseXmlEnum):
 MSO_LINE = MSO_LINE_DASH_STYLE
 
 
+class MSO_LINE_END_TYPE(BaseXmlEnum):
+    """Specifies the style of arrowhead at the end of a line.
+
+    Example::
+
+        from pptx.enum.dml import MSO_LINE_END_TYPE
+
+        shape.line.end_arrowhead_style = MSO_LINE_END_TYPE.TRIANGLE
+
+    MS API name: `MsoArrowheadStyle`
+
+    https://learn.microsoft.com/en-us/office/vba/api/Office.MsoArrowheadStyle
+    """
+
+    NONE = (1, "none", "No arrowhead.")
+    """No arrowhead."""
+
+    TRIANGLE = (2, "triangle", "A triangular arrowhead.")
+    """A triangular arrowhead."""
+
+    STEALTH = (3, "stealth", "A stealth-shaped arrowhead.")
+    """A stealth-shaped arrowhead."""
+
+    DIAMOND = (4, "diamond", "A diamond-shaped arrowhead.")
+    """A diamond-shaped arrowhead."""
+
+    OVAL = (5, "oval", "An oval arrowhead.")
+    """An oval arrowhead."""
+
+    OPEN = (6, "arrow", "An open arrowhead.")
+    """An open arrowhead."""
+
+
+class MSO_LINE_END_SIZE(BaseXmlEnum):
+    """Specifies the width or length of an arrowhead at the end of a line.
+
+    Example::
+
+        from pptx.enum.dml import MSO_LINE_END_SIZE
+
+        shape.line.end_arrowhead_width = MSO_LINE_END_SIZE.MEDIUM
+
+    MS API name: `MsoArrowheadWidth` / `MsoArrowheadLength`
+
+    https://learn.microsoft.com/en-us/office/vba/api/Office.MsoArrowheadWidth
+    """
+
+    SMALL = (1, "sm", "A small arrowhead.")
+    """A small arrowhead."""
+
+    MEDIUM = (2, "med", "A medium arrowhead.")
+    """A medium arrowhead."""
+
+    LARGE = (3, "lg", "A large arrowhead.")
+    """A large arrowhead."""
+
+
 class MSO_PATTERN_TYPE(BaseXmlEnum):
     """Specifies the fill pattern used in a shape.
 

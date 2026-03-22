@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 
 from pptx.dml.fill import CT_GradientFillProperties
+from pptx.enum.dml import MSO_LINE_END_SIZE, MSO_LINE_END_TYPE
 from pptx.enum.shapes import PP_PLACEHOLDER
 from pptx.oxml.ns import qn
 from pptx.oxml.simpletypes import (
@@ -236,8 +237,27 @@ class CT_ApplicationNonVisualDrawingProps(BaseOxmlElement):
     )
 
 
+class CT_LineEndProperties(BaseOxmlElement):
+    """Custom element class for `a:headEnd` and `a:tailEnd` elements."""
+
+    type: MSO_LINE_END_TYPE | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "type", MSO_LINE_END_TYPE
+    )
+    w: MSO_LINE_END_SIZE | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "w", MSO_LINE_END_SIZE
+    )
+    len: MSO_LINE_END_SIZE | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "len", MSO_LINE_END_SIZE
+    )
+
+
 class CT_LineProperties(BaseOxmlElement):
     """Custom element class for <a:ln> element"""
+
+    get_or_add_headEnd: Callable[[], CT_LineEndProperties]
+    get_or_add_tailEnd: Callable[[], CT_LineEndProperties]
+    _remove_headEnd: Callable[[], None]
+    _remove_tailEnd: Callable[[], None]
 
     _tag_seq = (
         "a:noFill",
@@ -264,6 +284,12 @@ class CT_LineProperties(BaseOxmlElement):
     )
     prstDash = ZeroOrOne("a:prstDash", successors=_tag_seq[5:])
     custDash = ZeroOrOne("a:custDash", successors=_tag_seq[6:])
+    headEnd: CT_LineEndProperties | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
+        "a:headEnd", successors=_tag_seq[10:]
+    )
+    tailEnd: CT_LineEndProperties | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
+        "a:tailEnd", successors=_tag_seq[11:]
+    )
     del _tag_seq
     w = OptionalAttribute("w", ST_LineWidth, default=Emu(0))
 

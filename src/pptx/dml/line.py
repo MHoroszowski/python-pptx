@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from pptx.dml.fill import FillFormat
-from pptx.enum.dml import MSO_FILL
+from pptx.enum.dml import MSO_FILL, MSO_LINE_END_SIZE, MSO_LINE_END_TYPE
 from pptx.util import Emu, lazyproperty
+
+if TYPE_CHECKING:
+    from pptx.oxml.shapes.shared import CT_LineEndProperties
 
 
 class LineFormat(object):
@@ -17,6 +22,69 @@ class LineFormat(object):
     def __init__(self, parent):
         super(LineFormat, self).__init__()
         self._parent = parent
+
+    @property
+    def begin_arrowhead_length(self) -> MSO_LINE_END_SIZE | None:
+        """Size of the arrowhead at the beginning of the line.
+
+        Read/write. Returns a member of :ref:`MsoArrowheadSize` or |None| if no explicit value
+        has been set. Assigning |None| removes any existing value.
+        """
+        headEnd = self._headEnd
+        if headEnd is None:
+            return None
+        return headEnd.len
+
+    @begin_arrowhead_length.setter
+    def begin_arrowhead_length(self, value: MSO_LINE_END_SIZE | None) -> None:
+        if value is None:
+            headEnd = self._headEnd
+            if headEnd is not None:
+                del headEnd.attrib["len"]
+            return
+        self._get_or_add_headEnd().len = value
+
+    @property
+    def begin_arrowhead_style(self) -> MSO_LINE_END_TYPE | None:
+        """Type of arrowhead at the beginning of the line.
+
+        Read/write. Returns a member of :ref:`MsoArrowheadStyle` or |None| if no explicit value
+        has been set. Assigning |None| removes any existing value.
+        """
+        headEnd = self._headEnd
+        if headEnd is None:
+            return None
+        return headEnd.type
+
+    @begin_arrowhead_style.setter
+    def begin_arrowhead_style(self, value: MSO_LINE_END_TYPE | None) -> None:
+        if value is None:
+            headEnd = self._headEnd
+            if headEnd is not None:
+                del headEnd.attrib["type"]
+            return
+        self._get_or_add_headEnd().type = value
+
+    @property
+    def begin_arrowhead_width(self) -> MSO_LINE_END_SIZE | None:
+        """Width of the arrowhead at the beginning of the line.
+
+        Read/write. Returns a member of :ref:`MsoArrowheadSize` or |None| if no explicit value
+        has been set. Assigning |None| removes any existing value.
+        """
+        headEnd = self._headEnd
+        if headEnd is None:
+            return None
+        return headEnd.w
+
+    @begin_arrowhead_width.setter
+    def begin_arrowhead_width(self, value: MSO_LINE_END_SIZE | None) -> None:
+        if value is None:
+            headEnd = self._headEnd
+            if headEnd is not None:
+                del headEnd.attrib["w"]
+            return
+        self._get_or_add_headEnd().w = value
 
     @lazyproperty
     def color(self):
@@ -31,6 +99,69 @@ class LineFormat(object):
         if self.fill.type != MSO_FILL.SOLID:
             self.fill.solid()
         return self.fill.fore_color
+
+    @property
+    def end_arrowhead_length(self) -> MSO_LINE_END_SIZE | None:
+        """Size of the arrowhead at the end of the line.
+
+        Read/write. Returns a member of :ref:`MsoArrowheadSize` or |None| if no explicit value
+        has been set. Assigning |None| removes any existing value.
+        """
+        tailEnd = self._tailEnd
+        if tailEnd is None:
+            return None
+        return tailEnd.len
+
+    @end_arrowhead_length.setter
+    def end_arrowhead_length(self, value: MSO_LINE_END_SIZE | None) -> None:
+        if value is None:
+            tailEnd = self._tailEnd
+            if tailEnd is not None:
+                del tailEnd.attrib["len"]
+            return
+        self._get_or_add_tailEnd().len = value
+
+    @property
+    def end_arrowhead_style(self) -> MSO_LINE_END_TYPE | None:
+        """Type of arrowhead at the end of the line.
+
+        Read/write. Returns a member of :ref:`MsoArrowheadStyle` or |None| if no explicit value
+        has been set. Assigning |None| removes any existing value.
+        """
+        tailEnd = self._tailEnd
+        if tailEnd is None:
+            return None
+        return tailEnd.type
+
+    @end_arrowhead_style.setter
+    def end_arrowhead_style(self, value: MSO_LINE_END_TYPE | None) -> None:
+        if value is None:
+            tailEnd = self._tailEnd
+            if tailEnd is not None:
+                del tailEnd.attrib["type"]
+            return
+        self._get_or_add_tailEnd().type = value
+
+    @property
+    def end_arrowhead_width(self) -> MSO_LINE_END_SIZE | None:
+        """Width of the arrowhead at the end of the line.
+
+        Read/write. Returns a member of :ref:`MsoArrowheadSize` or |None| if no explicit value
+        has been set. Assigning |None| removes any existing value.
+        """
+        tailEnd = self._tailEnd
+        if tailEnd is None:
+            return None
+        return tailEnd.w
+
+    @end_arrowhead_width.setter
+    def end_arrowhead_width(self, value: MSO_LINE_END_SIZE | None) -> None:
+        if value is None:
+            tailEnd = self._tailEnd
+            if tailEnd is not None:
+                del tailEnd.attrib["w"]
+            return
+        self._get_or_add_tailEnd().w = value
 
     @property
     def dash_style(self):
@@ -88,6 +219,10 @@ class LineFormat(object):
         ln = self._get_or_add_ln()
         ln.w = emu
 
+    def _get_or_add_headEnd(self) -> CT_LineEndProperties:
+        """Return the `a:headEnd` element, creating it if not present."""
+        return self._get_or_add_ln().get_or_add_headEnd()
+
     def _get_or_add_ln(self):
         """
         Return the ``<a:ln>`` element containing the line format properties
@@ -95,6 +230,26 @@ class LineFormat(object):
         """
         return self._parent.get_or_add_ln()
 
+    def _get_or_add_tailEnd(self) -> CT_LineEndProperties:
+        """Return the `a:tailEnd` element, creating it if not present."""
+        return self._get_or_add_ln().get_or_add_tailEnd()
+
+    @property
+    def _headEnd(self) -> CT_LineEndProperties | None:
+        """Return `a:headEnd` element or None if not present."""
+        ln = self._ln
+        if ln is None:
+            return None
+        return ln.headEnd
+
     @property
     def _ln(self):
         return self._parent.ln
+
+    @property
+    def _tailEnd(self) -> CT_LineEndProperties | None:
+        """Return `a:tailEnd` element or None if not present."""
+        ln = self._ln
+        if ln is None:
+            return None
+        return ln.tailEnd

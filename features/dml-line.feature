@@ -33,6 +33,30 @@ Feature: Get and change line properties
       | solid       | None              |
 
 
+  Scenario Outline: LineFormat.end_arrowhead_style getter
+    Given a LineFormat object as line having <arrowhead> end arrowhead
+     Then line.end_arrowhead_style is <value>
+
+    Examples: End arrowhead styles
+      | arrowhead   | value                         |
+      | no explicit | None                          |
+      | triangle    | MSO_LINE_END_TYPE.TRIANGLE    |
+
+  Scenario: LineFormat.end_arrowhead_style setter
+    Given a LineFormat object as line having no explicit end arrowhead
+     When I assign MSO_LINE_END_TYPE.STEALTH to line.end_arrowhead_style
+     Then line.end_arrowhead_style is MSO_LINE_END_TYPE.STEALTH
+
+  Scenario Outline: LineFormat.begin_arrowhead_style getter
+    Given a LineFormat object as line having <arrowhead> begin arrowhead
+     Then line.begin_arrowhead_style is <value>
+
+    Examples: Begin arrowhead styles
+      | arrowhead   | value                         |
+      | no explicit | None                          |
+      | stealth     | MSO_LINE_END_TYPE.STEALTH     |
+
+
   Scenario: LineFormat.fill
     Given a LineFormat object as line
      Then line.fill is a FillFormat object
