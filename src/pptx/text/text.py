@@ -7,7 +7,13 @@ from typing import TYPE_CHECKING, Iterator, cast
 from pptx.dml.fill import FillFormat
 from pptx.enum.dml import MSO_FILL
 from pptx.enum.lang import MSO_LANGUAGE_ID
-from pptx.enum.text import MSO_AUTO_SIZE, MSO_UNDERLINE, MSO_VERTICAL_ANCHOR
+from pptx.enum.text import (
+    MSO_AUTO_SIZE,
+    MSO_UNDERLINE,
+    MSO_VERTICAL_ANCHOR,
+    PP_AUTO_NUMBER_STYLE,
+    PP_BULLET_TYPE,
+)
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.oxml.simpletypes import ST_TextWrappingType
 from pptx.shapes import Subshape
@@ -493,6 +499,113 @@ class _Paragraph(Subshape):
     @alignment.setter
     def alignment(self, value: PP_PARAGRAPH_ALIGNMENT | None):
         self._pPr.algn = value
+
+    @property
+    def bullet_char(self) -> str | None:
+        """Character used for bullet, e.g. '•'.
+
+        Read/write. Returns |None| if the paragraph does not have a character bullet. Setting this
+        property also sets `bullet_type` to `PP_BULLET_TYPE.CHARACTER`.
+        """
+        pPr = self._p.pPr
+        if pPr is None:
+            return None
+        buChar = pPr.buChar
+        if buChar is None:
+            return None
+        return buChar.get("char")
+
+    @bullet_char.setter
+    def bullet_char(self, value: str | None) -> None:
+        pPr = self._p.get_or_add_pPr()
+        if value is None:
+            pPr._remove_eg_buTypeface()
+            return
+        buChar = pPr.get_or_change_to_buChar()
+        buChar.set("char", value)
+
+    @property
+    def bullet_type(self) -> PP_BULLET_TYPE | None:
+        """Type of bullet formatting on this paragraph.
+
+        Read/write. Returns a member of :ref:`PpBulletType` or |None| if no explicit bullet
+        formatting is set. Assigning |None| removes bullet formatting.
+        """
+        pPr = self._p.pPr
+        if pPr is None:
+            return None
+        bu = pPr.eg_buTypeface
+        if bu is None:
+            return None
+        tag = bu.tag.split("}")[-1]
+        return {
+            "buNone": PP_BULLET_TYPE.NONE,
+            "buChar": PP_BULLET_TYPE.CHARACTER,
+            "buAutoNum": PP_BULLET_TYPE.AUTO_NUMBER,
+        }.get(tag)
+
+    @bullet_type.setter
+    def bullet_type(self, value: PP_BULLET_TYPE | None) -> None:
+        pPr = self._p.get_or_add_pPr()
+        if value is None:
+            pPr._remove_eg_buTypeface()
+            return
+        method_map = {
+            PP_BULLET_TYPE.NONE: "get_or_change_to_buNone",
+            PP_BULLET_TYPE.CHARACTER: "get_or_change_to_buChar",
+            PP_BULLET_TYPE.AUTO_NUMBER: "get_or_change_to_buAutoNum",
+        }
+        getattr(pPr, method_map[value])()
+
+    @property
+    def bullet_auto_number_type(self) -> PP_AUTO_NUMBER_STYLE | None:
+        """Auto-number style for this paragraph's bullet.
+
+        Read/write. Returns a member of :ref:`PpAutoNumberStyle` or |None|. Setting this property
+        also sets `bullet_type` to `PP_BULLET_TYPE.AUTO_NUMBER`.
+        """
+        pPr = self._p.pPr
+        if pPr is None:
+            return None
+        buAutoNum = pPr.buAutoNum
+        if buAutoNum is None:
+            return None
+        type_val = buAutoNum.get("type")
+        if type_val is None:
+            return None
+        return PP_AUTO_NUMBER_STYLE.from_xml(type_val)
+
+    @bullet_auto_number_type.setter
+    def bullet_auto_number_type(self, value: PP_AUTO_NUMBER_STYLE | None) -> None:
+        pPr = self._p.get_or_add_pPr()
+        if value is None:
+            pPr._remove_eg_buTypeface()
+            return
+        buAutoNum = pPr.get_or_change_to_buAutoNum()
+        buAutoNum.set("type", value.xml_value)
+
+    @property
+    def bullet_font(self) -> str | None:
+        """Typeface name for bullet character.
+
+        Read/write. Returns |None| if no explicit bullet font is set.
+        """
+        pPr = self._p.pPr
+        if pPr is None:
+            return None
+        buFont = pPr.buFont
+        if buFont is None:
+            return None
+        return buFont.get("typeface")
+
+    @bullet_font.setter
+    def bullet_font(self, value: str | None) -> None:
+        pPr = self._p.get_or_add_pPr()
+        if value is None:
+            pPr._remove_buFont()
+            return
+        buFont = pPr.get_or_add_buFont()
+        buFont.set("typeface", value)
 
     def clear(self):
         """Remove all content from this paragraph.

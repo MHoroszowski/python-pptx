@@ -228,3 +228,82 @@ class PP_PARAGRAPH_ALIGNMENT(BaseXmlEnum):
 
 
 PP_ALIGN = PP_PARAGRAPH_ALIGNMENT
+
+
+class PP_BULLET_TYPE(BaseEnum):
+    """Specifies the type of bullet formatting applied to a paragraph.
+
+    Example::
+
+        from pptx.enum.text import PP_BULLET_TYPE
+
+        paragraph.bullet_type = PP_BULLET_TYPE.CHARACTER
+
+    Not a direct MS API mapping; describes the DrawingML bullet choice group.
+    """
+
+    NONE = (1, "No bullet formatting. Uses `a:buNone` element.")
+    """No bullet formatting. Uses `a:buNone` element."""
+
+    CHARACTER = (2, "A character bullet such as '•'. Uses `a:buChar` element.")
+    """A character bullet such as '•'. Uses `a:buChar` element."""
+
+    AUTO_NUMBER = (3, "Auto-numbered bullet. Uses `a:buAutoNum` element.")
+    """Auto-numbered bullet. Uses `a:buAutoNum` element."""
+
+
+class PP_AUTO_NUMBER_STYLE(BaseXmlEnum):
+    """Specifies the auto-number style for a numbered bullet list.
+
+    Example::
+
+        from pptx.enum.text import PP_AUTO_NUMBER_STYLE
+
+        paragraph.bullet_auto_number_type = PP_AUTO_NUMBER_STYLE.ARABIC_PERIOD
+
+    Maps to the `type` attribute of the `a:buAutoNum` element.
+    """
+
+    ARABIC_PERIOD = (1, "arabicPeriod", "Arabic numerals followed by a period: 1. 2. 3.")
+    """Arabic numerals followed by a period: 1. 2. 3."""
+
+    ARABIC_PAREN_RIGHT = (2, "arabicParenR", "Arabic numerals followed by a parenthesis: 1) 2) 3)")
+    """Arabic numerals followed by a parenthesis: 1) 2) 3)"""
+
+    ARABIC_PAREN_BOTH = (3, "arabicParenBoth", "Arabic numerals in parentheses: (1) (2) (3)")
+    """Arabic numerals in parentheses: (1) (2) (3)"""
+
+    ARABIC_PLAIN = (4, "arabicPlain", "Arabic numerals: 1 2 3")
+    """Arabic numerals: 1 2 3"""
+
+    ROMAN_UC_PERIOD = (5, "romanUcPeriod", "Uppercase Roman numerals with period: I. II. III.")
+    """Uppercase Roman numerals with period: I. II. III."""
+
+    ROMAN_LC_PERIOD = (6, "romanLcPeriod", "Lowercase Roman numerals with period: i. ii. iii.")
+    """Lowercase Roman numerals with period: i. ii. iii."""
+
+    ALPHA_UC_PERIOD = (7, "alphaUcPeriod", "Uppercase letters with period: A. B. C.")
+    """Uppercase letters with period: A. B. C."""
+
+    ALPHA_LC_PERIOD = (8, "alphaLcPeriod", "Lowercase letters with period: a. b. c.")
+    """Lowercase letters with period: a. b. c."""
+
+    ALPHA_UC_PAREN_RIGHT = (
+        9, "alphaUcParenR", "Uppercase letters with parenthesis: A) B) C)"
+    )
+    """Uppercase letters with parenthesis: A) B) C)"""
+
+    ALPHA_LC_PAREN_RIGHT = (
+        10, "alphaLcParenR", "Lowercase letters with parenthesis: a) b) c)"
+    )
+    """Lowercase letters with parenthesis: a) b) c)"""
+
+    ALPHA_UC_PAREN_BOTH = (
+        11, "alphaUcParenBoth", "Uppercase letters in parentheses: (A) (B) (C)"
+    )
+    """Uppercase letters in parentheses: (A) (B) (C)"""
+
+    ALPHA_LC_PAREN_BOTH = (
+        12, "alphaLcParenBoth", "Lowercase letters in parentheses: (a) (b) (c)"
+    )
+    """Lowercase letters in parentheses: (a) (b) (c)"""

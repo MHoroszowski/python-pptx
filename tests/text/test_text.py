@@ -11,7 +11,7 @@ import pytest
 from pptx.dml.color import ColorFormat
 from pptx.dml.fill import FillFormat
 from pptx.enum.lang import MSO_LANGUAGE_ID
-from pptx.enum.text import MSO_ANCHOR, MSO_AUTO_SIZE, MSO_UNDERLINE, PP_ALIGN
+from pptx.enum.text import MSO_ANCHOR, MSO_AUTO_SIZE, MSO_UNDERLINE, PP_ALIGN, PP_BULLET_TYPE
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.opc.package import XmlPart
 from pptx.shapes.autoshape import Shape
@@ -806,6 +806,55 @@ class Describe_Paragraph(object):
         paragraph, new_value, expected_xml = alignment_set_fixture
         paragraph.alignment = new_value
         assert paragraph._element.xml == expected_xml
+
+    @pytest.mark.parametrize(
+        ("p_cxml", "expected_value"),
+        [
+            ("a:p", None),
+            ("a:p/a:pPr", None),
+            ("a:p/a:pPr/a:buNone", PP_BULLET_TYPE.NONE),
+            ("a:p/a:pPr/a:buChar{char=-}", PP_BULLET_TYPE.CHARACTER),
+            ("a:p/a:pPr/a:buAutoNum{type=arabicPeriod}", PP_BULLET_TYPE.AUTO_NUMBER),
+        ],
+    )
+    def it_knows_its_bullet_type(self, p_cxml: str, expected_value):
+        paragraph = _Paragraph(element(p_cxml), None)
+        assert paragraph.bullet_type == expected_value
+
+    @pytest.mark.parametrize(
+        ("p_cxml", "value", "expected_tag"),
+        [
+            ("a:p", PP_BULLET_TYPE.CHARACTER, "buChar"),
+            ("a:p", PP_BULLET_TYPE.AUTO_NUMBER, "buAutoNum"),
+            ("a:p", PP_BULLET_TYPE.NONE, "buNone"),
+            ("a:p/a:pPr/a:buChar{char=-}", PP_BULLET_TYPE.NONE, "buNone"),
+        ],
+    )
+    def it_can_change_its_bullet_type(self, p_cxml: str, value, expected_tag: str):
+        p = element(p_cxml)
+        _Paragraph(p, None).bullet_type = value
+        pPr = p.pPr
+        bu = pPr.eg_buTypeface
+        assert bu is not None
+        assert bu.tag.endswith(expected_tag)
+
+    @pytest.mark.parametrize(
+        ("p_cxml", "expected_value"),
+        [
+            ("a:p", None),
+            ("a:p/a:pPr/a:buChar{char=-}", "-"),
+        ],
+    )
+    def it_knows_its_bullet_char(self, p_cxml: str, expected_value: str | None):
+        paragraph = _Paragraph(element(p_cxml), None)
+        assert paragraph.bullet_char == expected_value
+
+    def it_can_set_its_bullet_char(self):
+        p = element("a:p")
+        paragraph = _Paragraph(p, None)
+        paragraph.bullet_char = "-"
+        assert paragraph.bullet_type == PP_BULLET_TYPE.CHARACTER
+        assert paragraph.bullet_char == "-"
 
     def it_can_clear_itself_of_content(self, clear_fixture):
         paragraph, expected_xml = clear_fixture
