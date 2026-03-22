@@ -179,6 +179,18 @@ class Slide(_BaseSlide):
     part: SlidePart  # pyright: ignore[reportIncompatibleMethodOverride]
 
     @property
+    def is_hidden(self) -> bool:
+        """`True` if this slide is hidden from the presentation, `False` otherwise.
+
+        Assigning `True` causes the slide to be hidden. Assigning `False` makes the slide visible.
+        """
+        return not self._element.show
+
+    @is_hidden.setter
+    def is_hidden(self, value: bool) -> None:
+        self._element.show = not value
+
+    @property
     def follow_master_background(self):
         """|True| if this slide inherits the slide master background.
 

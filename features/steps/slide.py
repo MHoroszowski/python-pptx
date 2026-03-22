@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from behave import given, then
+from behave import given, then, when
 from helpers import test_pptx
 
 from pptx import Presentation
@@ -26,6 +26,12 @@ def given_a_notes_slide(context):
 def given_a_slide(context):
     presentation = Presentation(test_pptx("shp-shapes"))
     context.slide = presentation.slides[0]
+
+
+@given("a slide having {visibility} visibility")
+def given_a_slide_having_visibility(context, visibility):
+    slide_idx = {"visible": 0, "hidden": 1}[visibility]
+    context.slide = Presentation(test_pptx("sld-slide-hidden")).slides[slide_idx]
 
 
 @given("a slide having a notes slide")
@@ -96,6 +102,14 @@ def given_a_SlideMaster_object_as_slide(context):
     context.slide = context.slide_master = prs.slide_masters[0]
 
 
+# when ====================================================
+
+
+@when("I assign {value} to slide.is_hidden")
+def when_I_assign_value_to_slide_is_hidden(context, value):
+    context.slide.is_hidden = {"True": True, "False": False}[value]
+
+
 # then ====================================================
 
 
@@ -134,6 +148,13 @@ def then_slide_in_slide_layout_used_by_slides_is_True(context):
 def then_slide_background_is_a_Background_object(context):
     cls_name = context.slide.background.__class__.__name__
     assert cls_name == "_Background", "slide.background is a %s object" % cls_name
+
+
+@then("slide.is_hidden is {value}")
+def then_slide_is_hidden_is_value(context, value):
+    expected_value = {"True": True, "False": False}[value]
+    actual_value = context.slide.is_hidden
+    assert actual_value is expected_value, "slide.is_hidden is %s" % actual_value
 
 
 @then("slide.follow_master_background is {value}")

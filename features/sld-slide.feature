@@ -14,6 +14,22 @@ Feature: slide properties
       | an overridden         |
 
 
+  Scenario Outline: Slide.is_hidden
+    Given a slide having <hidden-or-visible> visibility
+     Then slide.is_hidden is <value>
+
+    Examples: Slide.is_hidden cases
+      | hidden-or-visible | value |
+      | visible           | False |
+      | hidden            | True  |
+
+
+  Scenario: Slide.is_hidden setter
+    Given a slide having visible visibility
+     When I assign True to slide.is_hidden
+     Then slide.is_hidden is True
+
+
   Scenario Outline: Slide.follow_master_background
     Given a Slide object having <default-or-overridden> background as slide
      Then slide.follow_master_background is <value>
