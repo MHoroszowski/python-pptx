@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, cast
 
+from pptx.oxml import parse_xml
+from pptx.oxml.ns import nsdecls
 from pptx.oxml.simpletypes import ST_Angle, ST_PositiveCoordinate, XsdBoolean
 from pptx.oxml.xmlchemy import (
     BaseOxmlElement,
@@ -60,3 +62,21 @@ class CT_EffectList(BaseOxmlElement):
         "a:outerShdw", successors=_tag_seq[5:]
     )
     del _tag_seq
+
+    def _new_outerShdw(self) -> CT_OuterShadowEffect:
+        """Return a new `a:outerShdw` element with default shadow properties.
+
+        PowerPoint requires a color child element on `a:outerShdw`, so this provides a reasonable
+        default: 45-degree angle, 3pt distance, 4pt blur, 40% transparent black.
+        """
+        return cast(
+            CT_OuterShadowEffect,
+            parse_xml(
+                f'<a:outerShdw {nsdecls("a")} blurRad="50800" dist="38100"'
+                f' dir="2700000" algn="tl" rotWithShape="0">'
+                f'  <a:srgbClr val="000000">'
+                f'    <a:alpha val="40000"/>'
+                f"  </a:srgbClr>"
+                f"</a:outerShdw>"
+            ),
+        )
