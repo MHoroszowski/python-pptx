@@ -1,3 +1,31 @@
+Fork notice
+-----------
+
+This distribution, ``python-pptx-extended``, is a fork of
+`scanny/python-pptx`_ at upstream version 1.0.2. The import name is unchanged
+(``import pptx``), so existing user code continues to work. The fork adds the
+following features on top of upstream:
+
+- Full shadow effect API on ``ShadowFormat`` (outer/inner/preset shadows).
+- Bullet and numbered list formatting on paragraphs.
+- Per-edge border styling for table cells.
+- ``cap_style`` and ``join_style`` properties on ``LineFormat``.
+- Line-end shape types (arrow / triangle / oval / etc.).
+- OOXML customXml support — ``Presentation.custom_properties`` (Mapping over
+  custom document properties) and ``Presentation.custom_xml_parts``
+  (Sequence over customXml data parts), supporting both
+  presentation-scoped (Office.js default) and package-scoped (VSTO /
+  SharePoint) topologies.
+
+Because the import package name (``pptx``) is shared with the upstream
+distribution, ``python-pptx`` and ``python-pptx-extended`` cannot be installed
+into the same environment — install one or the other.
+
+.. _`scanny/python-pptx`: https://github.com/scanny/python-pptx
+
+About python-pptx
+-----------------
+
 *python-pptx* is a Python library for creating, reading, and updating PowerPoint (.pptx)
 files.
 

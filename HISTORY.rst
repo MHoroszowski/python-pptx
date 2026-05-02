@@ -3,11 +3,10 @@
 Release History
 ---------------
 
-1.2.0 (2026-05-05) — fork release
-+++++++++++++++++++++++++++++++++
+1.2.0 (2026-05-05)
+++++++++++++++++++
 
-This is a feature release for the ``python-pptx-extended`` fork. Adds
-first-class support for OOXML customXml — the mechanism Office.js,
+Adds first-class support for OOXML customXml — the mechanism Office.js,
 SharePoint, and VSTO add-ins use to embed structured application data in
 ``.pptx`` files. See ``docs/user/custom-xml.rst`` for the user guide and
 ``docs/dev/analysis/customxml.rst`` for the OOXML analysis.
@@ -29,6 +28,16 @@ SharePoint, and VSTO add-ins use to embed structured application data in
 - feature: round-trip safety with files written by other tools — PPTX files
   containing customXml parts authored by SharePoint, Office.js, or VSTO load
   and save without losing their content.
+
+1.1.0 (2026-05-01)
+++++++++++++++++++
+
+- Fork of python-pptx 1.0.2 published as ``python-pptx-extended``.
+- feature: full shadow effect API on ``ShadowFormat``
+- feature: bullet and numbered list paragraph formatting
+- feature: per-edge table cell borders
+- feature: ``cap_style`` and ``join_style`` properties on ``LineFormat``
+- feature: line-end shape types
 
 1.0.2 (2024-08-07)
 ++++++++++++++++++
