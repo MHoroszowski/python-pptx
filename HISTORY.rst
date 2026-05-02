@@ -3,6 +3,16 @@
 Release History
 ---------------
 
+1.1.0 (2026-05-01)
+++++++++++++++++++
+
+- Fork of python-pptx 1.0.2 published as ``python-pptx-extended``.
+- feature: full shadow effect API on ``ShadowFormat``
+- feature: bullet and numbered list paragraph formatting
+- feature: per-edge table cell borders
+- feature: ``cap_style`` and ``join_style`` properties on ``LineFormat``
+- feature: line-end shape types
+
 1.0.2 (2024-08-07)
 ++++++++++++++++++
 
