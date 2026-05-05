@@ -13,12 +13,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Iterable, Iterator, Literal, Sequence, Union, cast
 
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
-from pptx.opc.package import Part
 from pptx.oxml import parse_xml
-from pptx.oxml.xmlchemy import BaseOxmlElement
 from pptx.parts.custom_xml import CustomXmlPart, XmlPayload
 
 if TYPE_CHECKING:
+    from pptx.opc.package import Part
+    from pptx.oxml.xmlchemy import BaseOxmlElement
     from pptx.parts.presentation import PresentationPart
 
 

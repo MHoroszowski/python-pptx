@@ -21,10 +21,11 @@ from pptx.parts.custom_xml import (
     _parse_payload,
 )
 
-
 _GUID_A = "{1A2B3C4D-5E6F-7890-ABCD-EF1234567890}"
 _GUID_B = "{ABCDEF12-3456-7890-ABCD-EF1234567890}"
-_GUID_RE = re.compile(r"^\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}$")
+_GUID_RE = re.compile(
+    r"^\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}$"
+)
 
 
 class _StubPart:

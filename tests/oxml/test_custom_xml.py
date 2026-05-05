@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import pytest
 from lxml import etree
 
 from pptx.oxml import parse_xml

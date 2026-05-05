@@ -16,12 +16,9 @@ from __future__ import annotations
 import os
 from io import BytesIO
 
-import pytest
-
 from pptx import Presentation
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.parts.custom_xml import CustomXmlPart
-
 
 _FIXTURE_DIR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),

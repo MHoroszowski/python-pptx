@@ -70,12 +70,12 @@ class DescribeTextFrame(object):
 
     @pytest.mark.parametrize(
         "txBody_cxml",
-        (
+        [
             "p:txBody/(a:p,a:p,a:p)",
             'p:txBody/a:p/a:r/a:t"foo"',
             'p:txBody/a:p/(a:br,a:r/a:t"foo")',
             'p:txBody/a:p/(a:fld,a:br,a:r/a:t"foo")',
-        ),
+        ],
     )
     def it_can_clear_itself_of_content(self, txBody_cxml):
         text_frame = TextFrame(element(txBody_cxml), None)
@@ -1210,12 +1210,12 @@ class Describe_Run(object):
         assert isinstance(text, str)
 
     @pytest.mark.parametrize(
-        "r_cxml, new_value, expected_r_cxml",
-        (
+        ("r_cxml", "new_value", "expected_r_cxml"),
+        [
             ("a:r/a:t", "barfoo", 'a:r/a:t"barfoo"'),
             ("a:r/a:t", "bar\x1bfoo", 'a:r/a:t"bar_x001B_foo"'),
             ("a:r/a:t", "bar\tfoo", 'a:r/a:t"bar\tfoo"'),
-        ),
+        ],
     )
     def it_can_change_its_text(self, r_cxml, new_value, expected_r_cxml):
         run = _Run(element(r_cxml), None)

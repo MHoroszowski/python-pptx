@@ -51,12 +51,12 @@ class DescribeTextFitter(object):
         assert font_size is font_size_
 
     @pytest.mark.parametrize(
-        "extents, point_size, text_lines, expected_value",
-        (
+        ("extents", "point_size", "text_lines", "expected_value"),
+        [
             ((66, 99), 6, ("foo", "bar"), False),
             ((66, 100), 6, ("foo", "bar"), True),
             ((66, 101), 6, ("foo", "bar"), True),
-        ),
+        ],
     )
     def it_provides_a_fits_inside_predicate_fn(
         self,

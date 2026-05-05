@@ -9,7 +9,7 @@ import datetime as dt
 import pytest
 
 from pptx.opc.constants import CONTENT_TYPE as CT
-from pptx.oxml.custom_properties import CT_Properties, DEFAULT_FMTID
+from pptx.oxml.custom_properties import DEFAULT_FMTID, CT_Properties
 from pptx.oxml.ns import nsdecls
 from pptx.parts.custom_properties import CustomPropertiesPart
 

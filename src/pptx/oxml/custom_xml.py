@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Iterable, cast
 
 from pptx.oxml import parse_xml
-from pptx.oxml.ns import nsdecls, qn
+from pptx.oxml.ns import nsdecls
 from pptx.oxml.simpletypes import XsdString
 from pptx.oxml.xmlchemy import (
     BaseOxmlElement,

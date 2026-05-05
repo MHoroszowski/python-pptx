@@ -15,7 +15,6 @@ import os
 
 from pptx import Presentation
 
-
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
 

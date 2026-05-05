@@ -11,8 +11,6 @@ from __future__ import annotations
 import datetime as dt
 from typing import cast
 
-from lxml.etree import _Element  # pyright: ignore[reportPrivateUsage]
-
 from pptx.oxml import parse_xml
 from pptx.oxml.ns import nsdecls, qn
 from pptx.oxml.simpletypes import XsdString, XsdUnsignedInt

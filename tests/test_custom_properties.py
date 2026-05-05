@@ -102,9 +102,9 @@ class DescribeCustomProperties_edge_cases:
     def it_treats_a_property_with_no_value_child_as_absent(self, empty_prs):
         # Force a malformed entry: an op:property element with no vt:* child.
         # The lookup returns None → CustomProperties surfaces it as KeyError.
+        from pptx.oxml import parse_xml
         from pptx.oxml.custom_properties import DEFAULT_FMTID
         from pptx.oxml.ns import nsdecls
-        from pptx.oxml import parse_xml
 
         cp_part = empty_prs.part.package.custom_properties_part
         # Replace _element with a malformed Properties root containing one
@@ -141,7 +141,8 @@ class DescribeCustomProperties_explicit_setters:
     def it_writes_float_with_set_float(self, empty_prs):
         empty_prs.custom_properties.set_float("X", 3.14)
         prop = empty_prs.part.package.custom_properties_part.get_property("X")
-        assert prop is not None and prop.r8 is not None
+        assert prop is not None
+        assert prop.r8 is not None
 
     def it_writes_bool_with_set_bool(self, empty_prs):
         empty_prs.custom_properties.set_bool("X", False)
