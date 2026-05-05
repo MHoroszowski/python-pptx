@@ -217,6 +217,36 @@ from pptx.oxml.coreprops import CT_CoreProperties  # noqa: E402
 register_element_cls("cp:coreProperties", CT_CoreProperties)
 
 
+from pptx.oxml.custom_properties import (  # noqa: E402
+    CT_Properties,
+    CT_Property,
+    CT_VtBool,
+    CT_VtFiletime,
+    CT_VtI4,
+    CT_VtLpwstr,
+    CT_VtR8,
+)
+
+register_element_cls("op:Properties", CT_Properties)
+register_element_cls("op:property", CT_Property)
+register_element_cls("vt:bool", CT_VtBool)
+register_element_cls("vt:filetime", CT_VtFiletime)
+register_element_cls("vt:i4", CT_VtI4)
+register_element_cls("vt:lpwstr", CT_VtLpwstr)
+register_element_cls("vt:r8", CT_VtR8)
+
+
+from pptx.oxml.custom_xml import (  # noqa: E402
+    CT_DatastoreItem,
+    CT_DatastoreSchemaRef,
+    CT_DatastoreSchemaRefs,
+)
+
+register_element_cls("ds:datastoreItem", CT_DatastoreItem)
+register_element_cls("ds:schemaRef", CT_DatastoreSchemaRef)
+register_element_cls("ds:schemaRefs", CT_DatastoreSchemaRefs)
+
+
 from pptx.oxml.dml.color import (  # noqa: E402
     CT_Color,
     CT_HslColor,
