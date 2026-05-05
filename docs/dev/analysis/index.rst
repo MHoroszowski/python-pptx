@@ -143,6 +143,7 @@ Package
    :maxdepth: 1
 
    pkg-coreprops
+   customxml
    enumerations
 
 

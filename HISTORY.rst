@@ -3,6 +3,33 @@
 Release History
 ---------------
 
+1.2.0 (2026-05-05) — fork release
++++++++++++++++++++++++++++++++++
+
+This is a feature release for the ``python-pptx-extended`` fork. Adds
+first-class support for OOXML customXml — the mechanism Office.js,
+SharePoint, and VSTO add-ins use to embed structured application data in
+``.pptx`` files. See ``docs/user/custom-xml.rst`` for the user guide and
+``docs/dev/analysis/customxml.rst`` for the OOXML analysis.
+
+- feature: ``Presentation.custom_properties`` — Mapping wrapper over
+  ``/docProps/custom.xml`` (Custom Document Properties; visible in
+  PowerPoint's *File → Properties → Advanced* UI). Type-dispatched
+  ``__setitem__`` plus explicit ``set_string`` / ``set_int`` / ``set_float`` /
+  ``set_bool`` / ``set_datetime`` setters when Python type inference does the
+  wrong thing.
+- feature: ``Presentation.custom_xml_parts`` — Sequence wrapper over the
+  package's customXml data parts. ``add(xml, *, name=, datastoreItem_id=,
+  schema_refs=, scope=)`` supports both presentation-scoped (Office.js
+  default) and package-scoped (VSTO / SharePoint) topologies. Lookup via
+  index, partname tail, ``by_guid(...)``, or ``by_name(...)``.
+- feature: ``CustomXmlParts.add_string_blob(name, content, mime_hint=,
+  encoding=)`` — convenience for the common "embed a string verbatim and
+  read it back" case (e.g. round-trip a markdown source document).
+- feature: round-trip safety with files written by other tools — PPTX files
+  containing customXml parts authored by SharePoint, Office.js, or VSTO load
+  and save without losing their content.
+
 1.0.2 (2024-08-07)
 ++++++++++++++++++
 
