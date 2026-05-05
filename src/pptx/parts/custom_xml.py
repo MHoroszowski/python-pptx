@@ -180,6 +180,50 @@ class CustomXmlPart(XmlPart):
         """
         self._element = _parse_payload(xml_payload)
 
+    @property
+    def name(self) -> str | None:
+        """The application-assigned name for this part, or `None`.
+
+        Names are stored as reserved entries in `/docProps/custom.xml` keyed
+        by `datastore_item_id`. See `Plans/customxml-implementation-plan.md`
+        §3.4 for the rationale (Q3 default).
+        """
+        # Local import to avoid `parts → custom_xml → parts` cycle.
+        from pptx.custom_xml import NAME_PROPERTY_PREFIX
+
+        try:
+            cp_part = self.package.custom_properties_part
+        except Exception:  # pragma: no cover — package without custom_properties_part hook
+            return None
+        prop = cp_part.get_property(NAME_PROPERTY_PREFIX + self.datastore_item_id)
+        if prop is None:
+            return None
+        value = prop.value
+        return value if isinstance(value, str) else None
+
+    def add_item(
+        self, tag: str, text: str = "", **attrs: str
+    ) -> BaseOxmlElement:
+        """Append a child element `<tag>text</tag>` with `attrs`.
+
+        Convenience for the common "flat list of items" customXml shape; for
+        arbitrary structure mutate :attr:`element` directly. The `tag` is
+        used verbatim — pass a fully-namespaced Clark name if the parent
+        root uses a default namespace and you need to escape it explicitly,
+        otherwise lxml will attach the new element to the parent's namespace.
+
+        Returns the newly appended element so the caller can chain further
+        edits on it.
+        """
+        from lxml import etree
+
+        new = etree.SubElement(self._element, tag)
+        if text:
+            new.text = text
+        for k, v in attrs.items():
+            new.set(k, v)
+        return cast(BaseOxmlElement, new)
+
 
 def _parse_payload(xml_payload: XmlPayload) -> BaseOxmlElement:
     """Coerce `xml_payload` to a `BaseOxmlElement` root.

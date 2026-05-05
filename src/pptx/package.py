@@ -8,6 +8,7 @@ from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.opc.package import OpcPackage
 from pptx.opc.packuri import PackURI
 from pptx.parts.coreprops import CorePropertiesPart
+from pptx.parts.custom_properties import CustomPropertiesPart
 from pptx.parts.image import Image, ImagePart
 from pptx.parts.media import MediaPart
 from pptx.util import lazyproperty
@@ -28,6 +29,35 @@ class Package(OpcPackage):
             core_props = CorePropertiesPart.default(self)
             self.relate_to(core_props, RT.CORE_PROPERTIES)
             return core_props
+
+    @lazyproperty
+    def custom_properties_part(self) -> CustomPropertiesPart:
+        """The Custom Document Properties part for this package.
+
+        Creates an empty `/docProps/custom.xml` if no such part is present
+        (mirrors :attr:`core_properties` behavior). The relationship is rooted
+        at the package — Office writes it as a sibling of `core.xml`.
+        """
+        try:
+            return self.part_related_by(RT.CUSTOM_PROPERTIES)
+        except KeyError:
+            cp_part = CustomPropertiesPart.default(self)
+            self.relate_to(cp_part, RT.CUSTOM_PROPERTIES)
+            return cp_part
+
+    @property
+    def custom_properties(self):
+        """Mapping-protocol view over the Custom Document Properties part.
+
+        Returns a :class:`pptx.custom_properties.CustomProperties` instance
+        wrapping the package's `CustomPropertiesPart`. The same wrapper
+        instance is reused across calls (it's a thin facade with no state).
+        """
+        # Local import — `pptx.custom_properties` and `pptx.package` would
+        # otherwise form a cycle through the parts layer.
+        from pptx.custom_properties import CustomProperties
+
+        return CustomProperties(self.custom_properties_part)
 
     def get_or_add_image_part(self, image_file: str | IO[bytes]):
         """

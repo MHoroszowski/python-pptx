@@ -12,6 +12,8 @@ from pptx.presentation import Presentation
 from pptx.util import lazyproperty
 
 if TYPE_CHECKING:
+    from pptx.custom_properties import CustomProperties
+    from pptx.custom_xml import CustomXmlParts
     from pptx.parts.coreprops import CorePropertiesPart
     from pptx.slide import NotesMaster, Slide, SlideLayout, SlideMaster
 
@@ -40,6 +42,30 @@ class PresentationPart(XmlPart):
         Provides read/write access to the Dublin Core properties of this presentation.
         """
         return self.package.core_properties
+
+    @lazyproperty
+    def custom_properties(self) -> CustomProperties:
+        """Mapping-protocol view over the Custom Document Properties part.
+
+        Lazy — the same wrapper instance is returned across calls. The
+        underlying `/docProps/custom.xml` part is created on first access if
+        the package does not already have one.
+        """
+        from pptx.custom_properties import CustomProperties
+
+        return CustomProperties(self.package.custom_properties_part)
+
+    @lazyproperty
+    def custom_xml_parts(self) -> CustomXmlParts:
+        """Sequence-like collection of customXml data parts in this package.
+
+        Walks both presentation-scoped (`ppt/_rels/presentation.xml.rels`) and
+        package-scoped (`/_rels/.rels`) `RT.CUSTOM_XML` relationships. The
+        same collection instance is reused across calls.
+        """
+        from pptx.custom_xml import CustomXmlParts
+
+        return CustomXmlParts(self)
 
     def get_slide(self, slide_id: int) -> Slide | None:
         """Return optional related |Slide| object identified by `slide_id`.
