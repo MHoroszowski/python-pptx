@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pptx.enum.dml import MSO_THEME_COLOR
-from pptx.oxml.simpletypes import ST_HexColorRGB, ST_Percentage
+from pptx.oxml.simpletypes import ST_HexColorRGB, ST_Percentage, ST_PositiveFixedPercentage
 from pptx.oxml.xmlchemy import (
     BaseOxmlElement,
     Choice,
@@ -20,6 +20,9 @@ class _BaseColorElement(BaseOxmlElement):
 
     lumMod = ZeroOrOne("a:lumMod")
     lumOff = ZeroOrOne("a:lumOff")
+    alpha = ZeroOrOne("a:alpha")
+    alphaMod = ZeroOrOne("a:alphaMod")
+    alphaOff = ZeroOrOne("a:alphaOff")
 
     def add_lumMod(self, value):
         """
@@ -37,6 +40,24 @@ class _BaseColorElement(BaseOxmlElement):
         lumOff.val = value
         return lumOff
 
+    def add_alpha(self, value):
+        """Return a newly added <a:alpha> child element."""
+        alpha = self._add_alpha()
+        alpha.val = value
+        return alpha
+
+    def add_alphaMod(self, value):
+        """Return a newly added <a:alphaMod> child element."""
+        alphaMod = self._add_alphaMod()
+        alphaMod.val = value
+        return alphaMod
+
+    def add_alphaOff(self, value):
+        """Return a newly added <a:alphaOff> child element."""
+        alphaOff = self._add_alphaOff()
+        alphaOff.val = value
+        return alphaOff
+
     def clear_lum(self):
         """
         Return self after removing any <a:lumMod> and <a:lumOff> child
@@ -44,6 +65,13 @@ class _BaseColorElement(BaseOxmlElement):
         """
         self._remove_lumMod()
         self._remove_lumOff()
+        return self
+
+    def clear_alpha(self):
+        """Return self after removing any <a:alpha>, <a:alphaMod>, <a:alphaOff> children."""
+        self._remove_alpha()
+        self._remove_alphaMod()
+        self._remove_alphaOff()
         return self
 
 
@@ -75,6 +103,12 @@ class CT_Percentage(BaseOxmlElement):
     """
 
     val = RequiredAttribute("val", ST_Percentage)
+
+
+class CT_PositiveFixedPercentage(BaseOxmlElement):
+    """Custom element class for <a:alpha>, <a:alphaMod>, and <a:alphaOff> elements."""
+
+    val = RequiredAttribute("val", ST_PositiveFixedPercentage)
 
 
 class CT_PresetColor(_BaseColorElement):

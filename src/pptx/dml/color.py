@@ -38,6 +38,20 @@ class ColorFormat(object):
         self._validate_brightness_value(value)
         self._color.brightness = value
 
+    @property
+    def transparency(self):
+        """Read/write float value between 0.0 and 1.0 indicating color transparency.
+
+        0.0 is completely opaque and 1.0 is completely transparent. 0.5 is 50%
+        transparent. Returns 0.0 when the color is undefined (i.e. of type None).
+        """
+        return self._color.transparency
+
+    @transparency.setter
+    def transparency(self, value):
+        self._validate_transparency_value(value)
+        self._color.transparency = value
+
     @classmethod
     def from_colorchoice_parent(cls, eg_colorChoice_parent):
         xClr = eg_colorChoice_parent.eg_colorChoice
@@ -105,6 +119,16 @@ class ColorFormat(object):
             )
             raise ValueError(msg)
 
+    def _validate_transparency_value(self, value):
+        if value < 0.0 or value > 1.0:
+            raise ValueError("transparency must be number in range 0.0 to 1.0")
+        if isinstance(self._color, _NoneColor):
+            msg = (
+                "can't set transparency when color.type is None. "
+                "Set color.rgb or .theme_color first."
+            )
+            raise ValueError(msg)
+
 
 class _Color(object):
     """
@@ -151,6 +175,35 @@ class _Color(object):
             self._shade(value)
         else:
             self._xClr.clear_lum()
+
+    @property
+    def transparency(self):
+        """Read/write float value between 0.0 and 1.0 indicating color transparency.
+
+        Returns 0.0 (fully opaque) when no <a:alpha> child is present, or for the
+        None-color sentinel.
+        """
+        if self._xClr is None:
+            return 0.0
+        alpha = self._xClr.alpha
+        if alpha is not None:
+            return 1.0 - alpha.val
+        return 0.0
+
+    @transparency.setter
+    def transparency(self, value):
+        if self._xClr is None:
+            msg = (
+                "can't set transparency when color.type is None. "
+                "Set color.rgb or .theme_color first."
+            )
+            raise ValueError(msg)
+        if value == 0.0:
+            self._xClr.clear_alpha()
+        else:
+            alpha_val = 1.0 - value
+            self._xClr.clear_alpha()
+            self._xClr.add_alpha(alpha_val)
 
     @property
     def color_type(self):  # pragma: no cover
