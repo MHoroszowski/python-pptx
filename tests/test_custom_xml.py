@@ -231,6 +231,67 @@ class DescribeCustomXmlParts_roundtrip:
         assert children[1].get("priority") == "high"
 
 
+class DescribeCustomXmlParts_string_blob:
+    def it_adds_a_string_blob(self, empty_prs):
+        part = empty_prs.custom_xml_parts.add_string_blob(
+            "readme", "# Hello\nworld", mime_hint="text/markdown"
+        )
+        assert isinstance(part, CustomXmlPart)
+        assert part.element.tag == "{urn:python-pptx:blob}blob"
+        assert part.element.get("name") == "readme"
+        assert part.element.get("mime") == "text/markdown"
+        assert part.element.get("encoding") == "text"
+        assert part.element.text == "# Hello\nworld"
+
+    def it_reads_back_a_string_blob_by_name(self, empty_prs):
+        empty_prs.custom_xml_parts.add_string_blob("note", "secret message")
+        assert empty_prs.custom_xml_parts.read_string_blob("note") == "secret message"
+
+    def it_returns_None_for_missing_blob(self, empty_prs):
+        assert empty_prs.custom_xml_parts.read_string_blob("missing") is None
+
+    def it_returns_None_for_a_non_blob_part(self, empty_prs):
+        empty_prs.custom_xml_parts.add(b'<other xmlns="u:o"/>', name="other")
+        # name lookup finds the part, but it's not the blob envelope shape
+        assert empty_prs.custom_xml_parts.read_string_blob("other") is None
+        assert empty_prs.custom_xml_parts.blob_encoding("other") is None
+
+    def it_round_trips_a_string_blob(self, empty_prs):
+        empty_prs.custom_xml_parts.add_string_blob("md", "content")
+        reloaded = _roundtrip(empty_prs)
+        assert reloaded.custom_xml_parts.read_string_blob("md") == "content"
+        assert reloaded.custom_xml_parts.blob_encoding("md") == "text"
+
+    def it_supports_base64_encoding(self, empty_prs):
+        encoded = "aGVsbG8gd29ybGQ="  # b64 of "hello world"
+        empty_prs.custom_xml_parts.add_string_blob("bin", encoded, encoding="base64")
+        assert empty_prs.custom_xml_parts.read_string_blob("bin") == encoded
+        assert empty_prs.custom_xml_parts.blob_encoding("bin") == "base64"
+
+    def it_rejects_empty_name(self, empty_prs):
+        with pytest.raises(ValueError):
+            empty_prs.custom_xml_parts.add_string_blob("", "content")
+
+    def it_rejects_non_string_content(self, empty_prs):
+        with pytest.raises(TypeError):
+            empty_prs.custom_xml_parts.add_string_blob("x", 42)  # type: ignore[arg-type]
+
+    def it_rejects_unknown_encoding(self, empty_prs):
+        with pytest.raises(ValueError):
+            empty_prs.custom_xml_parts.add_string_blob(
+                "x", "content", encoding="utf-7"  # type: ignore[arg-type]
+            )
+
+    def it_supports_package_scope(self, empty_prs):
+        from pptx.opc.constants import RELATIONSHIP_TYPE as RT_
+
+        empty_prs.custom_xml_parts.add_string_blob(
+            "x", "content", scope="package"
+        )
+        rel_types = {r.reltype for r in empty_prs.part.package._rels.values()}
+        assert RT_.CUSTOM_XML in rel_types
+
+
 class DescribeCustomXmlPart_name_edge_cases:
     def it_returns_None_when_no_name_property_for_the_guid(self, empty_prs):
         # Add a part WITHOUT a name. .name should return None even though the

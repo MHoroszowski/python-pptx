@@ -27,6 +27,11 @@ if TYPE_CHECKING:
 # `{prefix}{datastore_item_id}` and the value is the user-assigned name.
 NAME_PROPERTY_PREFIX = "_pptx_customxml_name_"
 
+# Reserved namespace for the string-blob envelope written by `add_string_blob`.
+# Read back through `read_string_blob` only — callers using `add(...)` directly
+# should pick their own namespace, not this one.
+BLOB_NAMESPACE = "urn:python-pptx:blob"
+
 
 class CustomXmlParts(Sequence[CustomXmlPart]):
     """Collection of customXml data parts attached to the presentation.
@@ -144,6 +149,86 @@ class CustomXmlParts(Sequence[CustomXmlPart]):
             cp[NAME_PROPERTY_PREFIX + data_part.datastore_item_id] = name
 
         return data_part
+
+    def add_string_blob(
+        self,
+        name: str,
+        content: str,
+        *,
+        mime_hint: str | None = None,
+        encoding: Literal["text", "base64"] = "text",
+        scope: Literal["presentation", "package"] = "presentation",
+    ) -> CustomXmlPart:
+        """Embed a string payload as a customXml part.
+
+        Wraps `content` in a one-element XML envelope under the reserved
+        `urn:python-pptx:blob` namespace::
+
+            <blob xmlns="urn:python-pptx:blob"
+                  name="…" mime="…" encoding="text|base64">…</blob>
+
+        For binary or non-XML-safe text, set ``encoding="base64"`` and pass
+        already-encoded `content` — the helper does NOT encode for you. Read
+        back via :meth:`read_string_blob`.
+
+        `mime_hint` is stored as the ``mime`` attribute on the envelope and
+        round-trips for the caller's reference; it has no effect on PowerPoint.
+
+        Returns the created :class:`CustomXmlPart`. Already attached at the
+        chosen scope; nothing else is needed before ``prs.save(...)``.
+        """
+        if not isinstance(name, str) or not name:
+            raise ValueError("name must be a non-empty string")
+        if not isinstance(content, str):  # pyright: ignore[reportUnnecessaryIsInstance]
+            raise TypeError("content must be str, got %s" % type(content).__name__)
+        if encoding not in ("text", "base64"):
+            raise ValueError(
+                "encoding must be 'text' or 'base64', got %r" % (encoding,)
+            )
+
+        from lxml import etree
+
+        envelope = etree.Element("{%s}blob" % BLOB_NAMESPACE, nsmap={None: BLOB_NAMESPACE})
+        envelope.set("name", name)
+        envelope.set("encoding", encoding)
+        if mime_hint is not None:
+            envelope.set("mime", mime_hint)
+        envelope.text = content
+
+        return self.add(envelope, name=name, scope=scope)
+
+    def read_string_blob(self, name: str) -> str | None:
+        """Return the string payload of the blob part `name`, or `None`.
+
+        Locates the part via :meth:`by_name`. Returns `None` if no such part
+        exists or if the part is not a `urn:python-pptx:blob` envelope (i.e.
+        was added by some other API or tool).
+
+        For ``encoding="base64"`` blobs, the still-encoded string is returned
+        — the caller decodes. The original encoding is recoverable from
+        :meth:`blob_encoding`.
+        """
+        part = self.by_name(name)
+        if part is None:
+            return None
+        root = part.element
+        if root.tag != "{%s}blob" % BLOB_NAMESPACE:
+            return None
+        return root.text or ""
+
+    def blob_encoding(self, name: str) -> str | None:
+        """Return the `encoding` attribute of the blob part `name`, or `None`.
+
+        Useful when a caller mixes text and base64 blobs and needs to decode
+        the latter on read.
+        """
+        part = self.by_name(name)
+        if part is None:
+            return None
+        root = part.element
+        if root.tag != "{%s}blob" % BLOB_NAMESPACE:
+            return None
+        return root.get("encoding")
 
     def remove(self, part: Union[CustomXmlPart, int, str]) -> None:
         """Remove a customXml part from the presentation.
