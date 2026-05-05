@@ -288,22 +288,14 @@ class PP_AUTO_NUMBER_STYLE(BaseXmlEnum):
     ALPHA_LC_PERIOD = (8, "alphaLcPeriod", "Lowercase letters with period: a. b. c.")
     """Lowercase letters with period: a. b. c."""
 
-    ALPHA_UC_PAREN_RIGHT = (
-        9, "alphaUcParenR", "Uppercase letters with parenthesis: A) B) C)"
-    )
+    ALPHA_UC_PAREN_RIGHT = (9, "alphaUcParenR", "Uppercase letters with parenthesis: A) B) C)")
     """Uppercase letters with parenthesis: A) B) C)"""
 
-    ALPHA_LC_PAREN_RIGHT = (
-        10, "alphaLcParenR", "Lowercase letters with parenthesis: a) b) c)"
-    )
+    ALPHA_LC_PAREN_RIGHT = (10, "alphaLcParenR", "Lowercase letters with parenthesis: a) b) c)")
     """Lowercase letters with parenthesis: a) b) c)"""
 
-    ALPHA_UC_PAREN_BOTH = (
-        11, "alphaUcParenBoth", "Uppercase letters in parentheses: (A) (B) (C)"
-    )
+    ALPHA_UC_PAREN_BOTH = (11, "alphaUcParenBoth", "Uppercase letters in parentheses: (A) (B) (C)")
     """Uppercase letters in parentheses: (A) (B) (C)"""
 
-    ALPHA_LC_PAREN_BOTH = (
-        12, "alphaLcParenBoth", "Lowercase letters in parentheses: (a) (b) (c)"
-    )
+    ALPHA_LC_PAREN_BOTH = (12, "alphaLcParenBoth", "Lowercase letters in parentheses: (a) (b) (c)")
     """Lowercase letters in parentheses: (a) (b) (c)"""

@@ -53,8 +53,16 @@ class CT_EffectList(BaseOxmlElement):
     _remove_outerShdw: Callable[[], None]
     _remove_innerShdw: Callable[[], None]
 
-    _tag_seq = ("a:blur", "a:fillOverlay", "a:glow", "a:innerShdw", "a:outerShdw",
-                "a:prstShdw", "a:reflection", "a:softEdge")
+    _tag_seq = (
+        "a:blur",
+        "a:fillOverlay",
+        "a:glow",
+        "a:innerShdw",
+        "a:outerShdw",
+        "a:prstShdw",
+        "a:reflection",
+        "a:softEdge",
+    )
     innerShdw: CT_InnerShadowEffect | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
         "a:innerShdw", successors=_tag_seq[4:]
     )

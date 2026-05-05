@@ -207,9 +207,7 @@ class CT_VtLpwstr(_VtValueElement):
         if not isinstance(value, str):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeError("vt:lpwstr value must be str, got %s" % type(value).__name__)
         if len(value) > _LPWSTR_MAX_LEN:
-            raise ValueError(
-                "vt:lpwstr value exceeds %d-character limit" % _LPWSTR_MAX_LEN
-            )
+            raise ValueError("vt:lpwstr value exceeds %d-character limit" % _LPWSTR_MAX_LEN)
         self.text = value
 
 
@@ -292,9 +290,7 @@ class CT_VtFiletime(_VtValueElement):
     @value_typed.setter
     def value_typed(self, value: dt.datetime) -> None:
         if not isinstance(value, dt.datetime):  # pyright: ignore[reportUnnecessaryIsInstance]
-            raise TypeError(
-                "vt:filetime value must be datetime, got %s" % type(value).__name__
-            )
+            raise TypeError("vt:filetime value must be datetime, got %s" % type(value).__name__)
         # Office writes filetimes as UTC with a literal trailing 'Z'. If the
         # caller supplied a tz-aware value in another zone, convert; if naive,
         # assume already UTC (matches CorePropertiesPart's behavior).

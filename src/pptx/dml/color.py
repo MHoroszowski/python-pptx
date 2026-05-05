@@ -101,8 +101,7 @@ class ColorFormat(object):
             raise ValueError("brightness must be number in range -1.0 to 1.0")
         if isinstance(self._color, _NoneColor):
             msg = (
-                "can't set brightness when color.type is None. Set color.rgb"
-                " or .theme_color first."
+                "can't set brightness when color.type is None. Set color.rgb or .theme_color first."
             )
             raise ValueError(msg)
 

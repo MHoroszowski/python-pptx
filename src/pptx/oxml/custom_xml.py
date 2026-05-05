@@ -32,9 +32,7 @@ class CT_DatastoreItem(BaseOxmlElement):
     )
     schemaRefs = ZeroOrOne("ds:schemaRefs", successors=())
 
-    _datastoreItem_tmpl = (
-        '<ds:datastoreItem %s ds:itemID="%%s"/>\n' % nsdecls("ds")
-    )
+    _datastoreItem_tmpl = '<ds:datastoreItem %s ds:itemID="%%s"/>\n' % nsdecls("ds")
 
     @staticmethod
     def new(itemID: str, schema_refs: Iterable[str] = ()) -> "CT_DatastoreItem":

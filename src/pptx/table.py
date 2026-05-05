@@ -391,7 +391,7 @@ class _Cell(Subshape):
         `.is_merge_origin` before calling.
         """
         if not self.is_merge_origin:
-            raise ValueError("not a merge-origin cell; only a merge-origin cell can be sp" "lit")
+            raise ValueError("not a merge-origin cell; only a merge-origin cell can be split")
 
         tc_range = TcRange.from_merge_origin(self._tc)
 

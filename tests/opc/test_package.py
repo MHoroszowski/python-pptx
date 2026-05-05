@@ -599,7 +599,7 @@ class Describe_ContentTypeMap:
         with pytest.raises(KeyError) as e:
             content_type_map[PackURI("/!blat/rhumba.1x&")]
         assert str(e.value) == (
-            "\"no content-type for partname '/!blat/rhumba.1x&' " 'in [Content_Types].xml"'
+            "\"no content-type for partname '/!blat/rhumba.1x&' in [Content_Types].xml\""
         )
 
     def it_raises_TypeError_on_key_not_instance_of_PackURI(self, content_type_map):
@@ -984,7 +984,7 @@ class Describe_Relationship:
         with pytest.raises(ValueError) as e:
             relationship.target_part
         assert str(e.value) == (
-            "`.target_part` property on _Relationship is undefined when " "target-mode is external"
+            "`.target_part` property on _Relationship is undefined when target-mode is external"
         )
 
     def it_knows_its_target_partname(self, part_):
@@ -1000,8 +1000,7 @@ class Describe_Relationship:
             relationship.target_partname
 
         assert str(e.value) == (
-            "`.target_partname` property on _Relationship is undefined when "
-            "target-mode is external"
+            "`.target_partname` property on _Relationship is undefined when target-mode is external"
         )
 
     def it_knows_the_target_uri_for_an_external_rel(self):

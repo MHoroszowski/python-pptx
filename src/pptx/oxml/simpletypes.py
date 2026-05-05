@@ -149,7 +149,7 @@ class XsdBoolean(BaseSimpleType):
     def validate(cls, value):
         if value not in (True, False):
             raise TypeError(
-                "only True or False (and possibly None) may be assigned, got" " '%s'" % value
+                "only True or False (and possibly None) may be assigned, got '%s'" % value
             )
 
 
@@ -462,7 +462,7 @@ class ST_LineWidth(XsdInt):
         super(ST_LineWidth, cls).validate(value)
         if value < 0 or value > 20116800:
             raise ValueError(
-                "value must be in range 0-20116800 inclusive (0-1584 points)" ", got %d" % value
+                "value must be in range 0-20116800 inclusive (0-1584 points), got %d" % value
             )
 
 
@@ -605,7 +605,7 @@ class ST_SlideSizeCoordinate(BaseIntType):
         cls.validate_int(value)
         if value < 914400 or value > 51206400:
             raise ValueError(
-                "value must be in range(914400, 51206400) (1-56 inches), got" " %d" % value
+                "value must be in range(914400, 51206400) (1-56 inches), got %d" % value
             )
 
 

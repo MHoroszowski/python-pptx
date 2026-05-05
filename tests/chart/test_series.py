@@ -144,7 +144,7 @@ class Describe_BaseCategorySeries(object):
             ("c:ser/c:val/c:numRef/c:numCache", ()),
             ("c:ser/c:val/c:numRef/c:numCache/c:ptCount{val=0}", ()),
             (
-                'c:ser/c:val/c:numRef/c:numCache/(c:ptCount{val=1},c:pt{idx=0}/c:v"' '1.1")',
+                'c:ser/c:val/c:numRef/c:numCache/(c:ptCount{val=1},c:pt{idx=0}/c:v"1.1")',
                 (1.1,),
             ),
             (
@@ -153,8 +153,7 @@ class Describe_BaseCategorySeries(object):
                 (1.1, None, 3.3),
             ),
             (
-                'c:ser/c:val/c:numLit/(c:ptCount{val=3},c:pt{idx=0}/c:v"1.1",c:pt{i'
-                'dx=2}/c:v"3.3")',
+                'c:ser/c:val/c:numLit/(c:ptCount{val=3},c:pt{idx=0}/c:v"1.1",c:pt{idx=2}/c:v"3.3")',
                 (1.1, None, 3.3),
             ),
             (
@@ -420,7 +419,7 @@ class Describe_XySeries(object):
             ("c:ser/c:yVal/c:numRef", ()),
             ("c:ser/c:val/c:numRef/c:numCache", ()),
             (
-                "c:ser/c:yVal/c:numRef/c:numCache/(c:ptCount{val=1},c:pt{idx=0}/c:v" '"1.1")',
+                'c:ser/c:yVal/c:numRef/c:numCache/(c:ptCount{val=1},c:pt{idx=0}/c:v"1.1")',
                 (1.1,),
             ),
             (
@@ -469,7 +468,7 @@ class DescribeSeriesCollection(object):
         params=[
             ("c:barChart/c:ser/c:order{val=42}", 0, 0),
             (
-                "c:barChart/(c:ser/c:order{val=9},c:ser/c:order{val=6},c:ser/c:orde" "r{val=3})",
+                "c:barChart/(c:ser/c:order{val=9},c:ser/c:order{val=6},c:ser/c:order{val=3})",
                 2,
                 0,
             ),
@@ -494,7 +493,7 @@ class DescribeSeriesCollection(object):
             ("c:barChart", 0),
             ("c:barChart/c:ser/c:order{val=4}", 1),
             (
-                "c:barChart/(c:ser/c:order{val=4},c:ser/c:order{val=1},c:ser/c:orde" "r{val=6})",
+                "c:barChart/(c:ser/c:order{val=4},c:ser/c:order{val=1},c:ser/c:order{val=6})",
                 3,
             ),
             ("c:plotArea/c:barChart", 0),

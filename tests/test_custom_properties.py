@@ -151,9 +151,7 @@ class DescribeCustomProperties_explicit_setters:
             empty_prs.custom_properties.set_bool("X", 0)  # type: ignore[arg-type]
 
     def it_writes_datetime_with_set_datetime(self, empty_prs):
-        empty_prs.custom_properties.set_datetime(
-            "When", dt.datetime(2026, 1, 1, 0, 0, 0)
-        )
+        empty_prs.custom_properties.set_datetime("When", dt.datetime(2026, 1, 1, 0, 0, 0))
         assert empty_prs.custom_properties["When"] == dt.datetime(2026, 1, 1, 0, 0, 0)
 
     def it_rejects_set_string_with_non_string(self, empty_prs):

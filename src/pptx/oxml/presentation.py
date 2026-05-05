@@ -18,17 +18,15 @@ class CT_Presentation(BaseOxmlElement):
     get_or_add_sldIdLst: Callable[[], CT_SlideIdList]
     get_or_add_sldMasterIdLst: Callable[[], CT_SlideMasterIdList]
 
-    sldMasterIdLst: CT_SlideMasterIdList | None = (
-        ZeroOrOne(  # pyright: ignore[reportAssignmentType]
-            "p:sldMasterIdLst",
-            successors=(
-                "p:notesMasterIdLst",
-                "p:handoutMasterIdLst",
-                "p:sldIdLst",
-                "p:sldSz",
-                "p:notesSz",
-            ),
-        )
+    sldMasterIdLst: CT_SlideMasterIdList | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
+        "p:sldMasterIdLst",
+        successors=(
+            "p:notesMasterIdLst",
+            "p:handoutMasterIdLst",
+            "p:sldIdLst",
+            "p:sldSz",
+            "p:notesSz",
+        ),
     )
     sldIdLst: CT_SlideIdList | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
         "p:sldIdLst", successors=("p:sldSz", "p:notesSz")

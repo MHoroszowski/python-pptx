@@ -20,9 +20,11 @@ def _props_xml(*property_xml_chunks: str) -> bytes:
 
 
 def _property_xml(name: str, pid: int, vt_inner_xml: str) -> str:
-    return (
-        '<op:property fmtid="%s" pid="%d" name="%s">%s</op:property>'
-        % (DEFAULT_FMTID, pid, name, vt_inner_xml)
+    return '<op:property fmtid="%s" pid="%d" name="%s">%s</op:property>' % (
+        DEFAULT_FMTID,
+        pid,
+        name,
+        vt_inner_xml,
     )
 
 
@@ -41,7 +43,10 @@ class DescribeCustomPropertiesPart:
             _property_xml("Build", 3, "<vt:i4>42</vt:i4>"),
         )
         part = CustomPropertiesPart.load(
-            "/docProps/custom.xml", CT.OFC_CUSTOM_PROPERTIES, None, xml  # type: ignore[arg-type]
+            "/docProps/custom.xml",
+            CT.OFC_CUSTOM_PROPERTIES,
+            None,
+            xml,  # type: ignore[arg-type]
         )
         assert isinstance(part._element, CT_Properties)
         assert part.property_names == ("Source", "Build")
@@ -94,7 +99,10 @@ class DescribeCustomPropertiesPart:
         blob = part.blob
         # blob is XML that re-parses to an equivalent CustomPropertiesPart
         reloaded = CustomPropertiesPart.load(
-            "/docProps/custom.xml", CT.OFC_CUSTOM_PROPERTIES, None, blob  # type: ignore[arg-type]
+            "/docProps/custom.xml",
+            CT.OFC_CUSTOM_PROPERTIES,
+            None,
+            blob,  # type: ignore[arg-type]
         )
         assert reloaded.property_names == ("Source", "Build")
         assert reloaded.get_property("Source").value == "cli"

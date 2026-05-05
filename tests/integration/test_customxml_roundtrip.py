@@ -123,9 +123,7 @@ class DescribeMultipartFixture:
         prs = Presentation(_fixture("multipart.pptx"))
         # mutate something in each layer
         prs.custom_properties["NewKey"] = "added"
-        prs.custom_xml_parts.by_name("provenance").add_item(
-            "added-by-test", "value"
-        )
+        prs.custom_xml_parts.by_name("provenance").add_item("added-by-test", "value")
 
         reloaded = _roundtrip(prs)
 

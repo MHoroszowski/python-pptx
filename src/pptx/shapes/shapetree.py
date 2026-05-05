@@ -287,7 +287,8 @@ class _BaseGroupShapes(_BaseShapes):
         grpSp = self._element.add_grpSp()
         for shape in shapes:
             grpSp.insert_element_before(
-                shape._element, "p:extLst"  # pyright: ignore[reportPrivateUsage]
+                shape._element,
+                "p:extLst",  # pyright: ignore[reportPrivateUsage]
             )
         if shapes:
             grpSp.recalculate_extents()

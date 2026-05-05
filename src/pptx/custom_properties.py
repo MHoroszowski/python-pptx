@@ -114,9 +114,7 @@ class CustomProperties(Mapping[str, CustomPropertyValue]):
     def set_datetime(self, name: str, value: dt.datetime) -> None:
         """Write `value` as `<vt:filetime>` (UTC, ISO-8601)."""
         if not isinstance(value, dt.datetime):  # pyright: ignore[reportUnnecessaryIsInstance]
-            raise TypeError(
-                "set_datetime value must be datetime, got %s" % type(value).__name__
-            )
+            raise TypeError("set_datetime value must be datetime, got %s" % type(value).__name__)
         self._set_typed(name, value)
 
     def _set_typed(self, name: str, value: CustomPropertyValue) -> None:

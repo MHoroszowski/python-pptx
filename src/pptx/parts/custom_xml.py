@@ -137,9 +137,7 @@ class CustomXmlPart(XmlPart):
         Raises `KeyError` if the props rel is missing — a malformed package
         the caller is expected to repair via `CustomXmlPart.new_pair(...)`.
         """
-        return cast(
-            CustomXmlPropertiesPart, self.part_related_by(RT.CUSTOM_XML_PROPS)
-        )
+        return cast(CustomXmlPropertiesPart, self.part_related_by(RT.CUSTOM_XML_PROPS))
 
     @property
     def datastore_item_id(self) -> str:
@@ -201,9 +199,7 @@ class CustomXmlPart(XmlPart):
         value = prop.value
         return value if isinstance(value, str) else None
 
-    def add_item(
-        self, tag: str, text: str = "", **attrs: str
-    ) -> BaseOxmlElement:
+    def add_item(self, tag: str, text: str = "", **attrs: str) -> BaseOxmlElement:
         """Append a child element `<tag>text</tag>` with `attrs`.
 
         Convenience for the common "flat list of items" customXml shape; for
@@ -239,8 +235,7 @@ def _parse_payload(xml_payload: XmlPayload) -> BaseOxmlElement:
     if isinstance(xml_payload, _Element):
         return cast("BaseOxmlElement", xml_payload)
     raise TypeError(
-        "xml_payload must be bytes, str, or lxml _Element; got %s"
-        % type(xml_payload).__name__
+        "xml_payload must be bytes, str, or lxml _Element; got %s" % type(xml_payload).__name__
     )
 
 
