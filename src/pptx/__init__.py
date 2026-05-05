@@ -11,6 +11,8 @@ from pptx.opc.constants import CONTENT_TYPE as CT
 from pptx.opc.package import PartFactory
 from pptx.parts.chart import ChartPart
 from pptx.parts.coreprops import CorePropertiesPart
+from pptx.parts.custom_properties import CustomPropertiesPart
+from pptx.parts.custom_xml import CustomXmlPropertiesPart
 from pptx.parts.image import ImagePart
 from pptx.parts.media import MediaPart
 from pptx.parts.presentation import PresentationPart
@@ -25,7 +27,7 @@ from pptx.parts.slide import (
 if TYPE_CHECKING:
     from pptx.opc.package import Part
 
-__version__ = "1.0.2"
+__version__ = "1.2.0"
 
 sys.modules["pptx.exceptions"] = exceptions
 del sys
@@ -38,6 +40,12 @@ content_type_to_part_class_map: dict[str, type[Part]] = {
     CT.PML_TEMPLATE_MAIN: PresentationPart,
     CT.PML_SLIDESHOW_MAIN: PresentationPart,
     CT.OPC_CORE_PROPERTIES: CorePropertiesPart,
+    CT.OFC_CUSTOM_PROPERTIES: CustomPropertiesPart,
+    CT.OFC_CUSTOM_XML_PROPERTIES: CustomXmlPropertiesPart,
+    # NOTE: CT.XML is intentionally NOT mapped to CustomXmlPart — see
+    # `Plans/customxml-implementation-plan.md` §3.6. The Phase-3
+    # `CustomXmlParts` collection wraps loaded base `Part` instances
+    # at enumeration time.
     CT.PML_NOTES_MASTER: NotesMasterPart,
     CT.PML_NOTES_SLIDE: NotesSlidePart,
     CT.PML_SLIDE: SlidePart,
@@ -71,6 +79,8 @@ PartFactory.part_type_for.update(content_type_to_part_class_map)
 del (
     ChartPart,
     CorePropertiesPart,
+    CustomPropertiesPart,
+    CustomXmlPropertiesPart,
     ImagePart,
     MediaPart,
     SlidePart,

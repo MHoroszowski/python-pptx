@@ -9,6 +9,8 @@ from pptx.slide import SlideMasters, Slides
 from pptx.util import lazyproperty
 
 if TYPE_CHECKING:
+    from pptx.custom_properties import CustomProperties
+    from pptx.custom_xml import CustomXmlParts
     from pptx.oxml.presentation import CT_Presentation, CT_SlideId
     from pptx.parts.presentation import PresentationPart
     from pptx.slide import NotesMaster, SlideLayouts
@@ -32,6 +34,27 @@ class Presentation(PartElementProxy):
         Provides read/write access to the Dublin Core document properties for the presentation.
         """
         return self.part.core_properties
+
+    @property
+    def custom_properties(self) -> CustomProperties:
+        """Mapping-protocol view over the Custom Document Properties part.
+
+        These are the user-defined properties surfaced under
+        `File → Properties → Advanced` in PowerPoint. Created on first access
+        if the package does not already have a custom properties part.
+        """
+        return self.part.custom_properties
+
+    @property
+    def custom_xml_parts(self) -> CustomXmlParts:
+        """Collection of customXml data parts in this presentation's package.
+
+        Walks both presentation-scoped and package-scoped `RT.CUSTOM_XML`
+        relationships. Use `.add(...)` to attach a new part, `[i]` or
+        `["item3.xml"]` to look one up by index or partname tail, and
+        `.by_guid(...)` / `.by_name(...)` for the other lookup forms.
+        """
+        return self.part.custom_xml_parts
 
     @property
     def notes_master(self) -> NotesMaster:

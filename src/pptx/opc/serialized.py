@@ -44,7 +44,9 @@ class PackageReader(Container[bytes]):
         instance.
         """
         blob_reader, uri = self._blob_reader, partname.rels_uri
-        return blob_reader[uri] if uri in blob_reader else None
+        # `_blob_reader` is a Container, not a Mapping — it has no `.get()`,
+        # so SIM401's "use blob_reader.get(uri, None)" rewrite would break.
+        return blob_reader[uri] if uri in blob_reader else None  # noqa: SIM401
 
     @lazyproperty
     def _blob_reader(self) -> _PhysPkgReader:

@@ -6,7 +6,7 @@ import pytest
 
 from pptx.dml.color import ColorFormat
 from pptx.dml.effect import ShadowFormat
-from pptx.util import Emu, Pt
+from pptx.util import Pt
 
 from ..unitutil.cxml import element, xml
 

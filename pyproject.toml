@@ -3,8 +3,9 @@ requires = ["setuptools>=61.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "python-pptx"
+name = "python-pptx-extended"
 authors = [{name = "Steve Canny", email = "stcanny@gmail.com"}]
+maintainers = [{name = "Matthew Horoszowski", email = "matthew.horoszowski@gmail.com"}]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
@@ -27,7 +28,7 @@ dependencies = [
     "lxml>=3.1.0",
     "typing_extensions>=4.9.0",
 ]
-description = "Create, read, and update PowerPoint 2007+ (.pptx) files."
+description = "Fork of python-pptx with additional formatting features (shadows, bullets, table borders, line caps/joins, line end types) and OOXML customXml support (custom doc properties, customXml data parts)."
 dynamic = ["version"]
 keywords = ["powerpoint", "ppt", "pptx", "openxml", "office"]
 license = { text = "MIT" }
@@ -35,10 +36,11 @@ readme = "README.rst"
 requires-python = ">=3.8"
 
 [project.urls]
-Changelog = "https://github.com/scanny/python-pptx/blob/master/HISTORY.rst"
+Changelog = "https://github.com/MHoroszowski/python-pptx/blob/master/HISTORY.rst"
 Documentation = "https://python-pptx.readthedocs.io/en/latest/"
-Homepage = "https://github.com/scanny/python-pptx"
-Repository = "https://github.com/scanny/python-pptx"
+Homepage = "https://github.com/MHoroszowski/python-pptx"
+Repository = "https://github.com/MHoroszowski/python-pptx"
+Upstream = "https://github.com/scanny/python-pptx"
 
 [tool.black]
 line-length = 100
@@ -70,6 +72,11 @@ filterwarnings = [
     "ignore::DeprecationWarning:xdist",
     # -- pytest complains when pytest-xdist is not installed --
     "ignore:Unknown config option. looponfailroots:pytest.PytestConfigWarning",
+    # -- pyparsing 2.x triggers sre_constants deprecation on Python 3.11+ --
+    "ignore:module 'sre_constants' is deprecated:DeprecationWarning",
+    # -- pyparsing 3.x deprecates lowerCamelCase shims (delimitedList etc.) used by tests/unitutil/cxml.py --
+    "ignore::DeprecationWarning:pyparsing",
+    "ignore::DeprecationWarning:tests.unitutil.cxml",
 ]
 
 looponfailroots = [
@@ -122,7 +129,7 @@ select = [
     "PLR0402",  # -- Name compared with itself like `foo == foo` --
     "PT",       # -- flake8-pytest-style --
     "SIM",      # -- flake8-simplify --
-    "TCH001",   # -- detect typing-only imports not under `if TYPE_CHECKING` --
+    "TC001",    # -- detect typing-only imports not under `if TYPE_CHECKING` (formerly TCH001) --
     "UP015",    # -- redundant `open()` mode parameter (like "r" is default) --
     "UP018",    # -- Unnecessary {literal_type} call like `str("abc")`. (rewrite as a literal) --
     "UP032",    # -- Use f-string instead of `.format()` call --
@@ -132,7 +139,6 @@ select = [
 ignore = [
     "COM812",   # -- over aggressively insists on trailing commas where not desireable --
     "PT001",    # -- wants empty parens on @pytest.fixture where not used (essentially always) --
-    "PT005",    # -- flags mock fixtures with names intentionally matching private method name --
     "PT011",    # -- pytest.raises({exc}) too broad, use match param or more specific exception --
     "PT012",    # -- pytest.raises() block should contain a single simple statement --
     "SIM117",   # -- merge `with` statements for context managers that have same scope --

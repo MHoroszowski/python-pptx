@@ -340,9 +340,7 @@ class PlotTypeInspector(object):
 
         def has_line_markers():
             matches = lineChart.xpath('c:ser/c:marker/c:symbol[@val="none"]')
-            if matches:
-                return False
-            return True
+            return not matches
 
         if has_line_markers():
             return {
@@ -370,9 +368,7 @@ class PlotTypeInspector(object):
 
         def noMarkers():
             matches = radarChart.xpath("c:ser/c:marker/c:symbol")
-            if matches and matches[0].get("val") == "none":
-                return True
-            return False
+            return bool(matches and matches[0].get("val") == "none")
 
         if radar_style is None:
             return XL.RADAR
@@ -391,9 +387,7 @@ class PlotTypeInspector(object):
 
         def noMarkers():
             symbols = scatterChart.xpath("c:ser/c:marker/c:symbol")
-            if symbols and symbols[0].get("val") == "none":
-                return True
-            return False
+            return bool(symbols and symbols[0].get("val") == "none")
 
         scatter_style = scatterChart.xpath("c:scatterStyle")[0].get("val")
 

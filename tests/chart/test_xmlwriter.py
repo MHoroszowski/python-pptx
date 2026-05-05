@@ -172,8 +172,8 @@ class Describe_BarChartXmlWriter(object):
     """Unit-test suite for `pptx.chart.xmlwriter._BarChartXmlWriter`."""
 
     @pytest.mark.parametrize(
-        "member, cat_count, ser_count, cat_type, snippet_name",
-        (
+        ("member", "cat_count", "ser_count", "cat_type", "snippet_name"),
+        [
             ("BAR_CLUSTERED", 2, 2, str, "2x2-bar-clustered"),
             ("BAR_CLUSTERED", 2, 2, date, "2x2-bar-clustered-date"),
             ("BAR_CLUSTERED", 2, 2, float, "2x2-bar-clustered-float"),
@@ -182,7 +182,7 @@ class Describe_BarChartXmlWriter(object):
             ("COLUMN_CLUSTERED", 2, 2, str, "2x2-column-clustered"),
             ("COLUMN_STACKED", 2, 2, str, "2x2-column-stacked"),
             ("COLUMN_STACKED_100", 2, 2, str, "2x2-column-stacked-100"),
-        ),
+        ],
     )
     def it_can_generate_xml_for_bar_type_charts(
         self, member, cat_count, ser_count, cat_type, snippet_name
@@ -284,11 +284,11 @@ class Describe_PieChartXmlWriter(object):
     """Unit-test suite for `pptx.chart.xmlwriter._PieChartXmlWriter`."""
 
     @pytest.mark.parametrize(
-        "enum_member, cat_count, ser_count, snippet_name",
-        (
+        ("enum_member", "cat_count", "ser_count", "snippet_name"),
+        [
             ("PIE", 3, 1, "3x1-pie"),
             ("PIE_EXPLODED", 3, 1, "3x1-pie-exploded"),
-        ),
+        ],
     )
     def it_can_generate_xml_for_a_pie_chart(self, enum_member, cat_count, ser_count, snippet_name):
         chart_type = getattr(XL_CHART_TYPE, enum_member)

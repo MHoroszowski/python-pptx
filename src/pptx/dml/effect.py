@@ -100,9 +100,7 @@ class ShadowFormat(object):
         Assigning |False| causes the inheritance link to be broken and **no**
         effects to appear on the shape.
         """
-        if self._element.effectLst is None:
-            return True
-        return False
+        return self._element.effectLst is None
 
     @inherit.setter
     def inherit(self, value):

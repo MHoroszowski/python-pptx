@@ -65,6 +65,7 @@ User Guide
    user/charts
    user/table
    user/notes
+   user/custom-xml
    user/use-cases
    user/concepts
 

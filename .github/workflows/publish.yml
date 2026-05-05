@@ -1,0 +1,59 @@
+name: publish
+
+# Builds and publishes python-pptx-extended to PyPI using PyPI Trusted
+# Publishing (OIDC). No long-lived API token is stored in repo secrets — the
+# workflow's identity is verified by PyPI against the configured Trusted
+# Publisher (see one-time setup in the PR description).
+#
+# Triggers:
+#   - GitHub Release published (recommended path: cut a release in the GH UI)
+#   - Manual workflow_dispatch (override / re-run)
+#
+# Tag pushes alone do not trigger this; create a Release pointing at the tag.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build sdist and wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build tooling
+        run: python -m pip install --upgrade build
+      - name: Build distributions
+        run: python -m build
+      - name: Verify metadata renders
+        run: |
+          python -m pip install --upgrade twine
+          python -m twine check dist/*
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/python-pptx-extended/
+    permissions:
+      id-token: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
