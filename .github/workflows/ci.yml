@@ -1,21 +1,47 @@
 name: ci
 
+# Runs on every push to a branch in this repo and on every pull request
+# targeting master. Tags push the same code through publish.yml separately.
+
 on:
-  pull_request:
-    branches: [ master ]
   push:
     branches:
       - master
       - develop
+      - "release/**"
+      - "feature/**"
+      - "ci/**"
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: python -m pip install --upgrade ruff
+      - name: ruff check
+        run: ruff check src tests
+      - name: ruff format check
+        run: ruff format --check src tests
+        continue-on-error: true  # advisory until format pass is run repo-wide
 
-  build:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
     steps:
@@ -26,11 +52,35 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
-      - name: Install test dependencies
+      - name: Install package and test deps
         run: |
-          pip install .
-          pip install -r requirements-test.txt
-      - name: Test with pytest
-        run: pytest --cov=pptx --cov-report term-missing tests
-      - name: Acceptance tests with behave
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install -r requirements-test.txt
+      - name: Unit + integration tests (pytest)
+        run: pytest --cov=pptx --cov-report=term-missing tests
+      - name: Acceptance tests (behave)
         run: behave --stop
+
+  build-check:
+    name: Build sdist and wheel (smoke)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build tooling
+        run: python -m pip install --upgrade build twine
+      - name: Build distributions
+        run: python -m build
+      - name: Verify metadata renders
+        run: python -m twine check dist/*
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist/
+          retention-days: 7
