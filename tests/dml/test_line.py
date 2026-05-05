@@ -189,9 +189,7 @@ class DescribeLineFormat(object):
             ("p:spPr/a:ln{cap=flat}", MSO_LINE_CAP_STYLE.FLAT),
         ],
     )
-    def it_knows_its_cap_style(
-        self, spPr_cxml: str, expected_value: MSO_LINE_CAP_STYLE | None
-    ):
+    def it_knows_its_cap_style(self, spPr_cxml: str, expected_value: MSO_LINE_CAP_STYLE | None):
         line = LineFormat(element(spPr_cxml))
         assert line.cap_style == expected_value
 
@@ -220,9 +218,7 @@ class DescribeLineFormat(object):
             ("p:spPr/a:ln/a:miter", MSO_LINE_JOIN_STYLE.MITER),
         ],
     )
-    def it_knows_its_join_style(
-        self, spPr_cxml: str, expected_value: MSO_LINE_JOIN_STYLE | None
-    ):
+    def it_knows_its_join_style(self, spPr_cxml: str, expected_value: MSO_LINE_JOIN_STYLE | None):
         line = LineFormat(element(spPr_cxml))
         assert line.join_style == expected_value
 

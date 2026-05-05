@@ -736,17 +736,17 @@ class DescribeAxisTitle(object):
             (
                 "c:title{a:b=c}",
                 True,
-                "c:title{a:b=c}/c:tx/c:rich/(a:bodyPr,a:lstStyle,a:p/a:pPr/a:defRPr" ")",
+                "c:title{a:b=c}/c:tx/c:rich/(a:bodyPr,a:lstStyle,a:p/a:pPr/a:defRPr)",
             ),
             (
                 "c:title{a:b=c}/c:tx",
                 True,
-                "c:title{a:b=c}/c:tx/c:rich/(a:bodyPr,a:lstStyle,a:p/a:pPr/a:defRPr" ")",
+                "c:title{a:b=c}/c:tx/c:rich/(a:bodyPr,a:lstStyle,a:p/a:pPr/a:defRPr)",
             ),
             (
                 "c:title{a:b=c}/c:tx/c:strRef",
                 True,
-                "c:title{a:b=c}/c:tx/c:rich/(a:bodyPr,a:lstStyle,a:p/a:pPr/a:defRPr" ")",
+                "c:title{a:b=c}/c:tx/c:rich/(a:bodyPr,a:lstStyle,a:p/a:pPr/a:defRPr)",
             ),
             ("c:title/c:tx/c:rich", True, "c:title/c:tx/c:rich"),
             ("c:title", False, "c:title"),

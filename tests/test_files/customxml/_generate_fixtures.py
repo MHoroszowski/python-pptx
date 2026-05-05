@@ -39,9 +39,7 @@ def write_presentation_scoped() -> None:
 def write_package_scoped() -> None:
     prs = Presentation()
     prs.custom_xml_parts.add(
-        b'<vsto-config xmlns="urn:my:vsto">'
-        b"<template>quarterly-report</template>"
-        b"</vsto-config>",
+        b'<vsto-config xmlns="urn:my:vsto"><template>quarterly-report</template></vsto-config>',
         name="vsto",
         scope="package",
         datastoreItem_id="{ABCDEF12-3456-7890-ABCD-EF1234567890}",

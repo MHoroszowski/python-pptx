@@ -107,8 +107,7 @@ class DescribeCustomXmlParts_lookups:
         assert empty_prs.custom_xml_parts.by_guid(guid) is not None
         # without braces, lowercase
         assert (
-            empty_prs.custom_xml_parts.by_guid("abcdef12-3456-7890-abcd-ef1234567890")
-            is not None
+            empty_prs.custom_xml_parts.by_guid("abcdef12-3456-7890-abcd-ef1234567890") is not None
         )
 
     def it_returns_None_for_unknown_guid(self, empty_prs):
@@ -279,15 +278,15 @@ class DescribeCustomXmlParts_string_blob:
     def it_rejects_unknown_encoding(self, empty_prs):
         with pytest.raises(ValueError):
             empty_prs.custom_xml_parts.add_string_blob(
-                "x", "content", encoding="utf-7"  # type: ignore[arg-type]
+                "x",
+                "content",
+                encoding="utf-7",  # type: ignore[arg-type]
             )
 
     def it_supports_package_scope(self, empty_prs):
         from pptx.opc.constants import RELATIONSHIP_TYPE as RT_
 
-        empty_prs.custom_xml_parts.add_string_blob(
-            "x", "content", scope="package"
-        )
+        empty_prs.custom_xml_parts.add_string_blob("x", "content", scope="package")
         rel_types = {r.reltype for r in empty_prs.part.package._rels.values()}
         assert RT_.CUSTOM_XML in rel_types
 

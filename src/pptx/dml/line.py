@@ -200,8 +200,11 @@ class LineFormat(object):
         if join is None:
             return None
         tag_name = join.tag.split("}")[-1]
-        return {"round": MSO_LINE_JOIN_STYLE.ROUND, "bevel": MSO_LINE_JOIN_STYLE.BEVEL,
-                "miter": MSO_LINE_JOIN_STYLE.MITER}[tag_name]
+        return {
+            "round": MSO_LINE_JOIN_STYLE.ROUND,
+            "bevel": MSO_LINE_JOIN_STYLE.BEVEL,
+            "miter": MSO_LINE_JOIN_STYLE.MITER,
+        }[tag_name]
 
     @join_style.setter
     def join_style(self, value: MSO_LINE_JOIN_STYLE | None) -> None:

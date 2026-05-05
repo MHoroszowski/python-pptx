@@ -94,14 +94,18 @@ class DescribeCustomXmlPropertiesPart:
 
     def it_can_change_the_datastore_item_id(self):
         part = CustomXmlPropertiesPart.new(
-            None, PackURI("/customXml/itemProps1.xml"), _GUID_A  # type: ignore[arg-type]
+            None,
+            PackURI("/customXml/itemProps1.xml"),
+            _GUID_A,  # type: ignore[arg-type]
         )
         part.datastore_item_id = _GUID_B
         assert part.datastore_item_id == _GUID_B
 
     def it_adds_and_removes_schema_refs(self):
         part = CustomXmlPropertiesPart.new(
-            None, PackURI("/customXml/itemProps1.xml"), _GUID_A  # type: ignore[arg-type]
+            None,
+            PackURI("/customXml/itemProps1.xml"),
+            _GUID_A,  # type: ignore[arg-type]
         )
         part.add_schema_ref("urn:a")
         part.add_schema_ref("urn:b")
@@ -145,7 +149,9 @@ class DescribeCustomXmlPart_new_pair:
     def it_accepts_a_caller_supplied_datastore_item_id(self):
         pkg = _StubPackage()
         data = CustomXmlPart.new_pair(
-            pkg, b"<x/>", datastore_item_id=_GUID_A  # type: ignore[arg-type]
+            pkg,
+            b"<x/>",
+            datastore_item_id=_GUID_A,  # type: ignore[arg-type]
         )
         assert data.datastore_item_id == _GUID_A
 

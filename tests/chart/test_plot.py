@@ -420,24 +420,23 @@ class DescribePlotTypeInspector(object):
             ("c:lineChart/c:grouping{val=percentStacked}", XL.LINE_MARKERS_STACKED_100),
             ("c:lineChart/c:ser/c:marker/c:symbol{val=none}", XL.LINE),
             (
-                "c:lineChart/(c:grouping{val=stacked},c:ser/c:marker/c:symbol{val=n" "one})",
+                "c:lineChart/(c:grouping{val=stacked},c:ser/c:marker/c:symbol{val=none})",
                 XL.LINE_STACKED,
             ),
             (
-                "c:lineChart/(c:grouping{val=percentStacked},c:ser/c:marker/c:symbo" "l{val=none})",
+                "c:lineChart/(c:grouping{val=percentStacked},c:ser/c:marker/c:symbol{val=none})",
                 XL.LINE_STACKED_100,
             ),
             ("c:pieChart", XL.PIE),
             ("c:pieChart/c:ser/c:explosion{val=25}", XL.PIE_EXPLODED),
             ("c:scatterChart/c:scatterStyle", XL.XY_SCATTER),
             (
-                "c:scatterChart/(c:scatterStyle{val=lineMarker},c:ser/c:spPr/a:ln/a" ":noFill)",
+                "c:scatterChart/(c:scatterStyle{val=lineMarker},c:ser/c:spPr/a:ln/a:noFill)",
                 XL.XY_SCATTER,
             ),
             ("c:scatterChart/c:scatterStyle{val=lineMarker}", XL.XY_SCATTER_LINES),
             (
-                "c:scatterChart/(c:scatterStyle{val=lineMarker},c:ser/c:marker/c:sy"
-                "mbol{val=none})",
+                "c:scatterChart/(c:scatterStyle{val=lineMarker},c:ser/c:marker/c:symbol{val=none})",
                 XL.XY_SCATTER_LINES_NO_MARKERS,
             ),
             (
@@ -460,7 +459,7 @@ class DescribePlotTypeInspector(object):
             ("c:radarChart/c:radarStyle{val=marker}", XL.RADAR_MARKERS),
             ("c:radarChart/c:radarStyle{val=filled}", XL.RADAR_FILLED),
             (
-                "c:radarChart/(c:radarStyle{val=marker},c:ser/c:marker/c:symbol{val" "=none})",
+                "c:radarChart/(c:radarStyle{val=marker},c:ser/c:marker/c:symbol{val=none})",
                 XL.RADAR,
             ),
         ]

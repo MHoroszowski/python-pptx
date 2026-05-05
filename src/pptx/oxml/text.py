@@ -177,22 +177,16 @@ class CT_TextBody(BaseOxmlElement):
 
     @classmethod
     def _a_txBody_tmpl(cls):
-        return "<a:txBody %s>\n" "  <a:bodyPr/>\n" "  <a:p/>\n" "</a:txBody>\n" % (nsdecls("a"))
+        return "<a:txBody %s>\n  <a:bodyPr/>\n  <a:p/>\n</a:txBody>\n" % (nsdecls("a"))
 
     @classmethod
     def _p_txBody_tmpl(cls):
-        return (
-            "<p:txBody %s>\n" "  <a:bodyPr/>\n" "  <a:p/>\n" "</p:txBody>\n" % (nsdecls("p", "a"))
-        )
+        return "<p:txBody %s>\n  <a:bodyPr/>\n  <a:p/>\n</p:txBody>\n" % (nsdecls("p", "a"))
 
     @classmethod
     def _txBody_tmpl(cls):
-        return (
-            "<p:txBody %s>\n"
-            "  <a:bodyPr/>\n"
-            "  <a:lstStyle/>\n"
-            "  <a:p/>\n"
-            "</p:txBody>\n" % (nsdecls("a", "p"))
+        return "<p:txBody %s>\n  <a:bodyPr/>\n  <a:lstStyle/>\n  <a:p/>\n</p:txBody>\n" % (
+            nsdecls("a", "p")
         )
 
 
@@ -405,9 +399,7 @@ class CT_TextParagraph(BaseOxmlElement):
     )
     r = ZeroOrMore("a:r", successors=("a:endParaRPr",))
     br = ZeroOrMore("a:br", successors=("a:endParaRPr",))
-    endParaRPr: CT_TextCharacterProperties | None = ZeroOrOne(
-        "a:endParaRPr", successors=()
-    )  # pyright: ignore[reportAssignmentType]
+    endParaRPr: CT_TextCharacterProperties | None = ZeroOrOne("a:endParaRPr", successors=())  # pyright: ignore[reportAssignmentType]
 
     def add_br(self) -> CT_TextLineBreak:
         """Return a newly appended `a:br` element."""
@@ -514,9 +506,7 @@ class CT_TextParagraphProperties(BaseOxmlElement):
     lvl: int = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
         "lvl", ST_TextIndentLevelType, default=0
     )
-    algn: PP_PARAGRAPH_ALIGNMENT | None = OptionalAttribute(
-        "algn", PP_PARAGRAPH_ALIGNMENT
-    )  # pyright: ignore[reportAssignmentType]
+    algn: PP_PARAGRAPH_ALIGNMENT | None = OptionalAttribute("algn", PP_PARAGRAPH_ALIGNMENT)  # pyright: ignore[reportAssignmentType]
     del _tag_seq
 
     @property

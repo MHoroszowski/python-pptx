@@ -72,9 +72,7 @@ class CustomXmlParts(Sequence[CustomXmlPart]):
                 if partname == key or partname.endswith("/" + key):
                     return part
             raise KeyError("no custom_xml part with partname %r" % key)
-        raise TypeError(
-            "custom_xml_parts key must be int or str, got %s" % type(key).__name__
-        )
+        raise TypeError("custom_xml_parts key must be int or str, got %s" % type(key).__name__)
 
     # -- Public lookups ----------------------------------------------------
 
@@ -127,9 +125,7 @@ class CustomXmlParts(Sequence[CustomXmlPart]):
         `prs.save(...)`.
         """
         if scope not in ("presentation", "package"):
-            raise ValueError(
-                "scope must be 'presentation' or 'package', got %r" % (scope,)
-            )
+            raise ValueError("scope must be 'presentation' or 'package', got %r" % (scope,))
 
         package = self._presentation_part.package
         data_part = CustomXmlPart.new_pair(
@@ -182,9 +178,7 @@ class CustomXmlParts(Sequence[CustomXmlPart]):
         if not isinstance(content, str):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeError("content must be str, got %s" % type(content).__name__)
         if encoding not in ("text", "base64"):
-            raise ValueError(
-                "encoding must be 'text' or 'base64', got %r" % (encoding,)
-            )
+            raise ValueError("encoding must be 'text' or 'base64', got %r" % (encoding,))
 
         from lxml import etree
 
@@ -288,9 +282,7 @@ class CustomXmlParts(Sequence[CustomXmlPart]):
         yield self._presentation_part.rels
         yield self._presentation_part.package._rels
 
-    def _resolve(
-        self, part: Union[CustomXmlPart, int, str]
-    ) -> CustomXmlPart | None:
+    def _resolve(self, part: Union[CustomXmlPart, int, str]) -> CustomXmlPart | None:
         if isinstance(part, CustomXmlPart):
             return part
         if isinstance(part, int):
@@ -304,8 +296,7 @@ class CustomXmlParts(Sequence[CustomXmlPart]):
             except KeyError:
                 return None
         raise TypeError(
-            "remove() argument must be CustomXmlPart, int, or str; got %s"
-            % type(part).__name__
+            "remove() argument must be CustomXmlPart, int, or str; got %s" % type(part).__name__
         )
 
 

@@ -29,9 +29,11 @@ def _props_xml(*property_xml_chunks: str) -> bytes:
 
 
 def _property_xml(name: str, pid: int, vt_inner_xml: str) -> str:
-    return (
-        '<op:property fmtid="%s" pid="%d" name="%s">%s</op:property>'
-        % (DEFAULT_FMTID, pid, name, vt_inner_xml)
+    return '<op:property fmtid="%s" pid="%d" name="%s">%s</op:property>' % (
+        DEFAULT_FMTID,
+        pid,
+        name,
+        vt_inner_xml,
     )
 
 
@@ -79,7 +81,10 @@ class DescribeCT_Properties:
     @pytest.mark.parametrize(
         ("value", "expected_child_tag"),
         [
-            ("hello", "{http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes}lpwstr"),
+            (
+                "hello",
+                "{http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes}lpwstr",
+            ),
             (42, "{http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes}i4"),
             (3.14, "{http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes}r8"),
             (True, "{http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes}bool"),
@@ -127,9 +132,7 @@ class DescribeCT_Properties:
 
     def it_skips_used_pids_when_assigning(self):
         # parse a doc where pid 2 is already used; the next add_property must use 3
-        root = parse_xml(
-            _props_xml(_property_xml("Existing", 2, "<vt:lpwstr>x</vt:lpwstr>"))
-        )
+        root = parse_xml(_props_xml(_property_xml("Existing", 2, "<vt:lpwstr>x</vt:lpwstr>")))
         new_prop = root.add_property("New", "y")
         assert new_prop.pid == 3
 
@@ -152,7 +155,7 @@ class DescribeCT_VtLpwstr:
             _property_xml("X", 2, "<vt:lpwstr>hello world</vt:lpwstr>").encode()
             if False
             else (
-                "<op:property %s fmtid=\"%s\" pid=\"2\" name=\"X\">"
+                '<op:property %s fmtid="%s" pid="2" name="X">'
                 "<vt:lpwstr>hello world</vt:lpwstr></op:property>"
                 % (nsdecls("op", "vt"), DEFAULT_FMTID)
             ).encode()
@@ -207,9 +210,8 @@ class DescribeCT_VtBool:
     )
     def it_reads_office_and_xsd_boolean_lexical_forms(self, xml_text, expected):
         prop_xml = (
-            "<op:property %s fmtid=\"%s\" pid=\"2\" name=\"X\">"
-            "<vt:bool>%s</vt:bool></op:property>"
-            % (nsdecls("op", "vt"), DEFAULT_FMTID, xml_text)
+            '<op:property %s fmtid="%s" pid="2" name="X">'
+            "<vt:bool>%s</vt:bool></op:property>" % (nsdecls("op", "vt"), DEFAULT_FMTID, xml_text)
         )
         prop = parse_xml(prop_xml.encode())
         assert prop.value is expected
@@ -221,9 +223,8 @@ class DescribeCT_VtBool:
 
     def it_raises_on_invalid_text(self):
         prop_xml = (
-            "<op:property %s fmtid=\"%s\" pid=\"2\" name=\"X\">"
-            "<vt:bool>maybe</vt:bool></op:property>"
-            % (nsdecls("op", "vt"), DEFAULT_FMTID)
+            '<op:property %s fmtid="%s" pid="2" name="X">'
+            "<vt:bool>maybe</vt:bool></op:property>" % (nsdecls("op", "vt"), DEFAULT_FMTID)
         )
         prop = parse_xml(prop_xml.encode())
         with pytest.raises(ValueError):
@@ -246,7 +247,7 @@ class DescribeCT_VtFiletime:
 
     def it_parses_offset_form_too(self):
         prop_xml = (
-            "<op:property %s fmtid=\"%s\" pid=\"2\" name=\"X\">"
+            '<op:property %s fmtid="%s" pid="2" name="X">'
             "<vt:filetime>2026-05-05T09:00:00-05:00</vt:filetime></op:property>"
             % (nsdecls("op", "vt"), DEFAULT_FMTID)
         )
@@ -263,9 +264,9 @@ class DescribeCT_Property_value_setter:
 
     def it_returns_None_for_value_when_no_child_present(self):
         # build a stripped property element by parsing
-        prop_xml = (
-            '<op:property %s fmtid="%s" pid="2" name="empty"/>'
-            % (nsdecls("op", "vt"), DEFAULT_FMTID)
+        prop_xml = '<op:property %s fmtid="%s" pid="2" name="empty"/>' % (
+            nsdecls("op", "vt"),
+            DEFAULT_FMTID,
         )
         prop = parse_xml(prop_xml.encode())
         assert isinstance(prop, CT_Property)
