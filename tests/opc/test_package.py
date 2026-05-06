@@ -514,6 +514,17 @@ class DescribePartFactory:
         SlidePart_ = class_mock(request, "pptx.opc.package.XmlPart")
         SlidePart_.load.return_value = part_
         partname = PackURI("/ppt/slides/slide7.xml")
+        # ---restore the original PartFactory mapping after the test so the
+        #    mock does not leak into subsequent tests that load slides
+        original = PartFactory.part_type_for.get(CT.PML_SLIDE)
+
+        def _restore():
+            if original is None:
+                PartFactory.part_type_for.pop(CT.PML_SLIDE, None)
+            else:
+                PartFactory.part_type_for[CT.PML_SLIDE] = original
+
+        request.addfinalizer(_restore)
         PartFactory.part_type_for[CT.PML_SLIDE] = SlidePart_
 
         part = PartFactory(partname, CT.PML_SLIDE, package_, b"blob")

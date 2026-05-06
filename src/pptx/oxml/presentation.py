@@ -64,6 +64,50 @@ class CT_SlideIdList(BaseOxmlElement):
         """
         return self._add_sldId(id=self._next_id, rId=rId)
 
+    def insert_sldId_at(self, rId: str, idx: int) -> CT_SlideId:
+        """Insert a new `p:sldId` child element at position `idx`.
+
+        The new `p:sldId` element has its `r:id` attribute set to `rId` and
+        receives the next available `id` value. `idx` may equal the current
+        length to append. Raises `IndexError` if `idx` is out of range.
+        """
+        if idx < 0 or idx > len(self.sldId_lst):
+            raise IndexError("slide index out of range")
+        new_sldId = self.add_sldId(rId)
+        if idx < len(self.sldId_lst) - 1:
+            target = self.sldId_lst[idx]
+            target.addprevious(new_sldId)
+        return new_sldId
+
+    def move_sldId_to(self, sldId: CT_SlideId, new_idx: int) -> None:
+        """Reposition `sldId` to zero-based position `new_idx` in this list.
+
+        `sldId` must already be a child of this element. Raises `IndexError`
+        if `new_idx` is out of range.
+        """
+        sldId_lst = self.sldId_lst
+        if new_idx < 0 or new_idx >= len(sldId_lst):
+            raise IndexError("slide index out of range")
+        if sldId_lst[new_idx] is sldId:
+            return
+        # -- detach from current position --
+        self.remove(sldId)
+        # -- re-fetch list so index reflects post-removal state --
+        sldId_lst = self.sldId_lst
+        if new_idx >= len(sldId_lst):
+            self.append(sldId)
+        else:
+            sldId_lst[new_idx].addprevious(sldId)
+
+    def remove_sldId(self, sldId: CT_SlideId) -> None:
+        """Remove `sldId` child element from this list.
+
+        Raises `ValueError` if `sldId` is not a child of this element.
+        """
+        if sldId.getparent() is not self:
+            raise ValueError("sldId is not a child of this sldIdLst")
+        self.remove(sldId)
+
     @property
     def _next_id(self) -> int:
         """The next available slide ID as an `int`.

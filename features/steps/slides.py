@@ -27,6 +27,8 @@ def given_a_Slides_object_containing_3_slides(context):
     prs = Presentation(test_pptx("sld-slides"))
     context.prs = prs
     context.slides = prs.slides
+    # ---capture original slide ids for CRUD ordering assertions---
+    context.original_slide_ids = [s.slide_id for s in prs.slides]
 
 
 # when ====================================================
@@ -42,6 +44,33 @@ def when_I_call_slides_add_slide(context):
 def when_I_call_slide_layouts_remove(context):
     slide_layouts = context.slide_layouts
     slide_layouts.remove(slide_layouts[1])
+
+
+@when("I call slides.add_slide(slide_layout, index=0)")
+def when_I_call_slides_add_slide_index_0(context):
+    layout = context.prs.slide_masters[0].slide_layouts[0]
+    context.new_slide = context.slides.add_slide(layout, index=0)
+
+
+@when("I call slides.add_slide(slide_layout, index=2)")
+def when_I_call_slides_add_slide_index_2(context):
+    layout = context.prs.slide_masters[0].slide_layouts[0]
+    context.new_slide = context.slides.add_slide(layout, index=2)
+
+
+@when("I call slides.move(slides[0], 2)")
+def when_I_call_slides_move(context):
+    context.slides.move(context.slides[0], 2)
+
+
+@when("I call slides.remove(slides[1])")
+def when_I_call_slides_remove(context):
+    context.slides.remove(context.slides[1])
+
+
+@when("I call slides[1].delete()")
+def when_I_call_slide_delete(context):
+    context.slides[1].delete()
 
 
 # then ====================================================
@@ -140,3 +169,26 @@ def then_slides_get_666_default_slides_2_is_slides_2(context):
 def then_slides_2_is_a_Slide_object(context):
     slides = context.slides
     assert type(slides[2]).__name__ == "Slide"
+
+
+@then("the new slide is at index {idx:d}")
+def then_the_new_slide_is_at_index(context, idx):
+    assert context.slides[idx].slide_id == context.new_slide.slide_id, (
+        "expected new slide at index %d, got slide_id mismatch" % idx
+    )
+
+
+@then("the slide order matches the original [1, 2, 0]")
+def then_slide_order_matches_1_2_0(context):
+    o = context.original_slide_ids
+    expected = [o[1], o[2], o[0]]
+    actual = [s.slide_id for s in context.slides]
+    assert actual == expected, "expected %r, got %r" % (expected, actual)
+
+
+@then("the surviving slide order matches the original [0, 2]")
+def then_surviving_slide_order_matches_0_2(context):
+    o = context.original_slide_ids
+    expected = [o[0], o[2]]
+    actual = [s.slide_id for s in context.slides]
+    assert actual == expected, "expected %r, got %r" % (expected, actual)
