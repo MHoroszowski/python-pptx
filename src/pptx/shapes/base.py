@@ -132,6 +132,58 @@ class BaseShape(object):
         self._element._nvXxPr.cNvPr.name = value  # pyright: ignore[reportPrivateUsage]
 
     @property
+    def alt_text(self) -> str | None:
+        """Alternative text describing this shape, used by screen readers and accessibility tools.
+
+        Read/write. Returns the value of the `descr` attribute on the shape's
+        `<p:cNvPr>` element. None if the attribute is not present (the shape has no
+        alt text). Assigning None removes the attribute. Assigning an empty string
+        is a meaningful, distinct value — it preserves the attribute as `descr=""`,
+        useful for callers who want to round-trip an explicit "no description"
+        marker.
+
+        See Microsoft Accessibility guidance: prefer `alt_text` for the description
+        and `alt_title` for a short heading, when both are needed.
+        """
+        return self._element._nvXxPr.cNvPr.descr  # pyright: ignore[reportPrivateUsage]
+
+    @alt_text.setter
+    def alt_text(self, value: str | None):
+        self._element._nvXxPr.cNvPr.descr = value  # pyright: ignore[reportPrivateUsage]
+
+    @property
+    def alt_title(self) -> str | None:
+        """Short title (heading) for this shape's alternative text, used for accessibility.
+
+        Read/write. Returns the value of the `title` attribute on the shape's
+        `<p:cNvPr>` element. None if the attribute is not present. Assigning None
+        removes the attribute. Microsoft accessibility guidance recommends a brief
+        title plus a longer `alt_text` description, mirroring the two-field UX in
+        PowerPoint's "Alt Text" pane.
+        """
+        return self._element._nvXxPr.cNvPr.title  # pyright: ignore[reportPrivateUsage]
+
+    @alt_title.setter
+    def alt_title(self, value: str | None):
+        self._element._nvXxPr.cNvPr.title = value  # pyright: ignore[reportPrivateUsage]
+
+    @property
+    def is_decorative(self) -> bool:
+        """True if this shape is marked as decorative (Office 2019+ accessibility flag).
+
+        Read/write boolean. Decorative shapes are skipped by screen readers; they
+        carry no semantic meaning beyond visual decoration (background grids,
+        ornaments, dividers). Backed by an `<adec:decorative val="1"/>` extension
+        inside `<p:cNvPr>/<a:extLst>`. Setting to False removes the extension; the
+        attribute defaults to False on shapes that have never been touched.
+        """
+        return self._element._nvXxPr.cNvPr.decorative  # pyright: ignore[reportPrivateUsage]
+
+    @is_decorative.setter
+    def is_decorative(self, value: bool):
+        self._element._nvXxPr.cNvPr.decorative = bool(value)  # pyright: ignore[reportPrivateUsage]
+
+    @property
     def part(self) -> BaseSlidePart:
         """The package part containing this shape.
 

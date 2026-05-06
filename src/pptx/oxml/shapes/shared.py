@@ -334,13 +334,115 @@ class CT_NonVisualDrawingProps(BaseOxmlElement):
 
     get_or_add_hlinkClick: Callable[[], CT_Hyperlink]
     get_or_add_hlinkHover: Callable[[], CT_Hyperlink]
+    get_or_add_extLst: Callable[[], CT_OfficeArtExtensionList]
+    _remove_extLst: Callable[[], None]
 
     _tag_seq = ("a:hlinkClick", "a:hlinkHover", "a:extLst")
     hlinkClick: CT_Hyperlink | None = ZeroOrOne("a:hlinkClick", successors=_tag_seq[1:])
     hlinkHover: CT_Hyperlink | None = ZeroOrOne("a:hlinkHover", successors=_tag_seq[2:])
+    extLst: CT_OfficeArtExtensionList | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
+        "a:extLst", successors=()
+    )
     id = RequiredAttribute("id", ST_DrawingElementId)
     name = RequiredAttribute("name", XsdString)
+    descr: str | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "descr", XsdString, default=None
+    )
+    title: str | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "title", XsdString, default=None
+    )
     del _tag_seq
+
+    # -- URI for the Office 2019+ "Mark as decorative" extension --
+    _DECORATIVE_EXT_URI = "{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}"
+
+    @property
+    def decorative(self) -> bool:
+        """True if this `p:cNvPr` carries an `<adec:decorative val="1"/>` extension.
+
+        Returns False when the extension is missing, when its `val` attribute is "0",
+        or when the extLst element is absent altogether.
+        """
+        extLst = self.extLst
+        if extLst is None:
+            return False
+        return extLst.is_decorative
+
+    @decorative.setter
+    def decorative(self, value: bool) -> None:
+        if value:
+            extLst = self.get_or_add_extLst()
+            extLst.set_decorative()
+        else:
+            extLst = self.extLst
+            if extLst is not None:
+                extLst.clear_decorative()
+                # ---if extLst is now empty, remove it entirely---
+                if not list(extLst):
+                    self._remove_extLst()
+
+
+class CT_OfficeArtExtensionList(BaseOxmlElement):
+    """`a:extLst` element under `p:cNvPr` (and elsewhere).
+
+    Holds zero or more `a:ext` children, each identified by a `uri` attribute. We use
+    this here to carry the Office 2019+ `<adec:decorative>` extension; other URIs are
+    preserved verbatim by virtue of being plain `a:ext` children.
+
+    Note: we cannot register a custom class for `a:ext` itself because that local-name
+    is shared with the transform-extents element (`<a:ext cx="..." cy="..."/>`). Instead
+    we manipulate the `a:ext` children directly through lxml.
+    """
+
+    _DECORATIVE_EXT_URI = "{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}"
+
+    @property
+    def is_decorative(self) -> bool:
+        """True if a child `<a:ext uri="{FF2B5EF4...}">` carries `<adec:decorative val="1"/>`."""
+        ext = self._decorative_ext
+        if ext is None:
+            return False
+        decorative = ext.find(qn("adec:decorative"))
+        if decorative is None:
+            return False
+        # ---val attribute defaults to "1" per the schema; be permissive on read---
+        val = decorative.get("val")
+        if val is None:
+            return True
+        return val not in ("0", "false")
+
+    def set_decorative(self) -> None:
+        """Ensure an `<a:ext uri="...">/<adec:decorative val="1"/>` is present."""
+        ext = self._decorative_ext
+        if ext is None:
+            ext = OxmlElement(
+                "a:ext",
+                nsmap={"a": "http://schemas.openxmlformats.org/drawingml/2006/main"},
+            )
+            ext.set("uri", self._DECORATIVE_EXT_URI)
+            self.append(ext)
+        decorative = ext.find(qn("adec:decorative"))
+        if decorative is None:
+            decorative = OxmlElement(
+                "adec:decorative",
+                nsmap={"adec": "http://schemas.microsoft.com/office/drawing/2017/decorative"},
+            )
+            ext.append(decorative)
+        decorative.set("val", "1")
+
+    def clear_decorative(self) -> None:
+        """Remove the decorative `a:ext` child if present."""
+        ext = self._decorative_ext
+        if ext is not None:
+            self.remove(ext)
+
+    @property
+    def _decorative_ext(self):
+        """Return the `a:ext` child whose `uri` is the decorative-extension URI, or None."""
+        matches = self.xpath(f"./a:ext[@uri='{self._DECORATIVE_EXT_URI}']")
+        if not matches:
+            return None
+        return matches[0]
 
 
 class CT_Placeholder(BaseOxmlElement):
