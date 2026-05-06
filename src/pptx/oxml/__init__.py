@@ -418,6 +418,7 @@ from pptx.oxml.shapes.shared import (  # noqa: E402
     CT_LineEndProperties,
     CT_LineProperties,
     CT_NonVisualDrawingProps,
+    CT_OfficeArtExtensionList,
     CT_Placeholder,
     CT_Point2D,
     CT_PositiveSize2D,
@@ -428,6 +429,7 @@ from pptx.oxml.shapes.shared import (  # noqa: E402
 register_element_cls("a:chExt", CT_PositiveSize2D)
 register_element_cls("a:chOff", CT_Point2D)
 register_element_cls("a:ext", CT_PositiveSize2D)
+register_element_cls("a:extLst", CT_OfficeArtExtensionList)
 register_element_cls("a:headEnd", CT_LineEndProperties)
 register_element_cls("a:ln", CT_LineProperties)
 register_element_cls("a:lnB", CT_LineProperties)

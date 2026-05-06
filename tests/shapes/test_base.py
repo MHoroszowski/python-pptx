@@ -67,6 +67,313 @@ class DescribeBaseShape(object):
         assert shape._element.xml == expected_xml
 
     @pytest.mark.parametrize(
+        ("shape_cxml", "expected_value"),
+        [
+            ("p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo,descr=Bar chart}", "Bar chart"),
+            (
+                "p:grpSp/p:nvGrpSpPr/p:cNvPr{id=2,name=bar,descr=Group description}",
+                "Group description",
+            ),
+            ("p:graphicFrame/p:nvGraphicFramePr/p:cNvPr{id=3,name=baz,descr=Table A}", "Table A"),
+            ("p:cxnSp/p:nvCxnSpPr/p:cNvPr{id=4,name=boo,descr=Connector}", "Connector"),
+            ("p:pic/p:nvPicPr/p:cNvPr{id=5,name=far,descr=Photo of Alice}", "Photo of Alice"),
+        ],
+    )
+    def it_knows_its_alt_text(self, shape_cxml, expected_value):
+        shape = BaseShape(cast("ShapeElement", element(shape_cxml)), None)
+        assert shape.alt_text == expected_value
+
+    def it_returns_empty_string_when_descr_is_explicitly_empty(self):
+        from pptx.oxml import parse_xml
+
+        sp_xml = (
+            '<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
+            '<p:nvSpPr><p:cNvPr id="1" name="foo" descr=""/></p:nvSpPr></p:sp>'
+        )
+        shape = BaseShape(cast("ShapeElement", parse_xml(sp_xml)), None)
+        assert shape.alt_text == ""
+
+    @pytest.mark.parametrize(
+        "shape_cxml",
+        [
+            "p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo}",
+            "p:grpSp/p:nvGrpSpPr/p:cNvPr{id=2,name=bar}",
+            "p:graphicFrame/p:nvGraphicFramePr/p:cNvPr{id=3,name=baz}",
+            "p:cxnSp/p:nvCxnSpPr/p:cNvPr{id=4,name=boo}",
+            "p:pic/p:nvPicPr/p:cNvPr{id=5,name=far}",
+        ],
+    )
+    def it_returns_None_for_alt_text_when_descr_attr_is_absent(self, shape_cxml):
+        shape = BaseShape(cast("ShapeElement", element(shape_cxml)), None)
+        assert shape.alt_text is None
+
+    @pytest.mark.parametrize(
+        ("shape_cxml", "ShapeCls", "new_value", "expected_cxml"),
+        [
+            (
+                "p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo}",
+                Shape,
+                "A red rectangle",
+                "p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo,descr=A red rectangle}",
+            ),
+            (
+                "p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo,descr=old text}",
+                Shape,
+                "new text",
+                "p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo,descr=new text}",
+            ),
+            (
+                "p:grpSp/p:nvGrpSpPr/p:cNvPr{id=2,name=bar}",
+                BaseShape,
+                "Group of icons",
+                "p:grpSp/p:nvGrpSpPr/p:cNvPr{id=2,name=bar,descr=Group of icons}",
+            ),
+            (
+                "p:graphicFrame/p:nvGraphicFramePr/p:cNvPr{id=3,name=baz}",
+                GraphicFrame,
+                "Q3 revenue table",
+                "p:graphicFrame/p:nvGraphicFramePr/p:cNvPr{id=3,name=baz,descr=Q3 revenue table}",
+            ),
+            (
+                "p:cxnSp/p:nvCxnSpPr/p:cNvPr{id=4,name=boo}",
+                BaseShape,
+                "Arrow A to B",
+                "p:cxnSp/p:nvCxnSpPr/p:cNvPr{id=4,name=boo,descr=Arrow A to B}",
+            ),
+            (
+                "p:pic/p:nvPicPr/p:cNvPr{id=5,name=far}",
+                Picture,
+                "Logo",
+                "p:pic/p:nvPicPr/p:cNvPr{id=5,name=far,descr=Logo}",
+            ),
+        ],
+    )
+    def it_can_change_its_alt_text(self, shape_cxml, ShapeCls, new_value, expected_cxml):
+        shape = ShapeCls(element(shape_cxml), None)
+        shape.alt_text = new_value
+        assert shape._element.xml == xml(expected_cxml)
+
+    def it_can_set_alt_text_to_empty_string(self):
+        """Empty string is a meaningful, distinct value from None — it writes descr=""."""
+        from pptx.oxml import parse_xml
+
+        sp_xml = (
+            '<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
+            '<p:nvSpPr><p:cNvPr id="1" name="foo" descr="something"/></p:nvSpPr></p:sp>'
+        )
+        shape = BaseShape(cast("ShapeElement", parse_xml(sp_xml)), None)
+        shape.alt_text = ""
+        assert shape.alt_text == ""
+        cNvPr = shape._element.xpath("./p:nvSpPr/p:cNvPr")[0]
+        assert cNvPr.get("descr") == ""
+
+    @pytest.mark.parametrize(
+        ("shape_cxml", "expected_cxml"),
+        [
+            (
+                "p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo,descr=remove me}",
+                "p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo}",
+            ),
+            (
+                "p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo}",
+                "p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo}",
+            ),
+        ],
+    )
+    def it_can_clear_its_alt_text_by_assigning_None(self, shape_cxml, expected_cxml):
+        shape = BaseShape(cast("ShapeElement", element(shape_cxml)), None)
+        shape.alt_text = None
+        assert shape._element.xml == xml(expected_cxml)
+
+    @pytest.mark.parametrize(
+        ("shape_cxml", "expected_value"),
+        [
+            ("p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo,title=Heading}", "Heading"),
+            ("p:grpSp/p:nvGrpSpPr/p:cNvPr{id=2,name=bar,title=Top group}", "Top group"),
+            (
+                "p:graphicFrame/p:nvGraphicFramePr/p:cNvPr{id=3,name=baz,title=Table title}",
+                "Table title",
+            ),
+            ("p:pic/p:nvPicPr/p:cNvPr{id=5,name=far,title=Photo}", "Photo"),
+        ],
+    )
+    def it_knows_its_alt_title(self, shape_cxml, expected_value):
+        shape = BaseShape(cast("ShapeElement", element(shape_cxml)), None)
+        assert shape.alt_title == expected_value
+
+    def it_returns_None_for_alt_title_when_title_attr_is_absent(self):
+        shape = BaseShape(
+            cast("ShapeElement", element("p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo}")), None
+        )
+        assert shape.alt_title is None
+
+    @pytest.mark.parametrize(
+        ("shape_cxml", "ShapeCls", "new_value", "expected_cxml"),
+        [
+            (
+                "p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo}",
+                Shape,
+                "Section heading",
+                "p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo,title=Section heading}",
+            ),
+            (
+                "p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo,title=Old}",
+                Shape,
+                "New",
+                "p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo,title=New}",
+            ),
+            (
+                "p:pic/p:nvPicPr/p:cNvPr{id=5,name=far,descr=Photo}",
+                Picture,
+                "Picture title",
+                "p:pic/p:nvPicPr/p:cNvPr{id=5,name=far,descr=Photo,title=Picture title}",
+            ),
+        ],
+    )
+    def it_can_change_its_alt_title(self, shape_cxml, ShapeCls, new_value, expected_cxml):
+        shape = ShapeCls(element(shape_cxml), None)
+        shape.alt_title = new_value
+        assert shape._element.xml == xml(expected_cxml)
+
+    def it_can_clear_its_alt_title_by_assigning_None(self):
+        shape = BaseShape(
+            cast(
+                "ShapeElement",
+                element("p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo,title=remove me}"),
+            ),
+            None,
+        )
+        shape.alt_title = None
+        assert shape._element.xml == xml("p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo}")
+
+    def it_knows_is_decorative_returns_False_when_no_extLst(self):
+        shape = BaseShape(
+            cast("ShapeElement", element("p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo}")), None
+        )
+        assert shape.is_decorative is False
+
+    def it_knows_is_decorative_returns_True_when_decorative_ext_is_present(self):
+        from pptx import oxml as _oxml  # noqa: F401  (force registration)
+        from pptx.oxml import parse_xml
+
+        sp_xml = (
+            '<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"'
+            ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+            ' xmlns:adec="http://schemas.microsoft.com/office/drawing/2017/decorative">'
+            '<p:nvSpPr><p:cNvPr id="1" name="foo">'
+            "<a:extLst>"
+            '<a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">'
+            '<adec:decorative val="1"/>'
+            "</a:ext>"
+            "</a:extLst>"
+            "</p:cNvPr></p:nvSpPr></p:sp>"
+        )
+        shape = BaseShape(cast("ShapeElement", parse_xml(sp_xml)), None)
+        assert shape.is_decorative is True
+
+    def it_knows_is_decorative_returns_False_when_decorative_val_is_0(self):
+        from pptx.oxml import parse_xml
+
+        sp_xml = (
+            '<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"'
+            ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+            ' xmlns:adec="http://schemas.microsoft.com/office/drawing/2017/decorative">'
+            '<p:nvSpPr><p:cNvPr id="1" name="foo">'
+            "<a:extLst>"
+            '<a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">'
+            '<adec:decorative val="0"/>'
+            "</a:ext>"
+            "</a:extLst>"
+            "</p:cNvPr></p:nvSpPr></p:sp>"
+        )
+        shape = BaseShape(cast("ShapeElement", parse_xml(sp_xml)), None)
+        assert shape.is_decorative is False
+
+    def it_can_set_is_decorative_to_True_on_a_clean_cNvPr(self):
+        from pptx.oxml import parse_xml
+
+        sp_xml = (
+            '<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
+            '<p:nvSpPr><p:cNvPr id="1" name="foo"/></p:nvSpPr></p:sp>'
+        )
+        shape = BaseShape(cast("ShapeElement", parse_xml(sp_xml)), None)
+        shape.is_decorative = True
+        assert shape.is_decorative is True
+        # ---round-trip read of underlying XML confirms structure---
+        cNvPr = shape._element.xpath("./p:nvSpPr/p:cNvPr")[0]
+        ext = cNvPr.xpath("./a:extLst/a:ext[@uri='{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}']")
+        assert len(ext) == 1
+        decoratives = ext[0].xpath("./adec:decorative")
+        assert len(decoratives) == 1
+        assert decoratives[0].get("val") == "1"
+
+    def it_can_set_is_decorative_to_False_clears_the_decorative_ext(self):
+        from pptx.oxml import parse_xml
+
+        sp_xml = (
+            '<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"'
+            ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+            ' xmlns:adec="http://schemas.microsoft.com/office/drawing/2017/decorative">'
+            '<p:nvSpPr><p:cNvPr id="1" name="foo">'
+            "<a:extLst>"
+            '<a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">'
+            '<adec:decorative val="1"/>'
+            "</a:ext>"
+            "</a:extLst>"
+            "</p:cNvPr></p:nvSpPr></p:sp>"
+        )
+        shape = BaseShape(cast("ShapeElement", parse_xml(sp_xml)), None)
+        shape.is_decorative = False
+        assert shape.is_decorative is False
+        cNvPr = shape._element.xpath("./p:nvSpPr/p:cNvPr")[0]
+        ext = cNvPr.xpath("./a:extLst/a:ext[@uri='{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}']")
+        assert ext == []
+
+    def it_setting_is_decorative_True_when_already_True_is_idempotent(self):
+        from pptx.oxml import parse_xml
+
+        sp_xml = (
+            '<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"'
+            ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+            ' xmlns:adec="http://schemas.microsoft.com/office/drawing/2017/decorative">'
+            '<p:nvSpPr><p:cNvPr id="1" name="foo">'
+            "<a:extLst>"
+            '<a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">'
+            '<adec:decorative val="1"/>'
+            "</a:ext>"
+            "</a:extLst>"
+            "</p:cNvPr></p:nvSpPr></p:sp>"
+        )
+        shape = BaseShape(cast("ShapeElement", parse_xml(sp_xml)), None)
+        shape.is_decorative = True
+        # ---still True, only one ext element present---
+        assert shape.is_decorative is True
+        cNvPr = shape._element.xpath("./p:nvSpPr/p:cNvPr")[0]
+        ext = cNvPr.xpath("./a:extLst/a:ext[@uri='{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}']")
+        assert len(ext) == 1
+
+    def it_setting_is_decorative_False_when_already_False_is_idempotent(self):
+        shape = BaseShape(
+            cast("ShapeElement", element("p:sp/p:nvSpPr/p:cNvPr{id=1,name=foo}")), None
+        )
+        shape.is_decorative = False
+        assert shape.is_decorative is False
+
+    def it_preserves_decorative_ext_alongside_alt_text(self):
+        """Decorative flag and alt_text must not interfere with each other."""
+        from pptx.oxml import parse_xml
+
+        sp_xml = (
+            '<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
+            '<p:nvSpPr><p:cNvPr id="1" name="foo"/></p:nvSpPr></p:sp>'
+        )
+        shape = BaseShape(cast("ShapeElement", parse_xml(sp_xml)), None)
+        shape.alt_text = "Some shape"
+        shape.is_decorative = True
+        assert shape.alt_text == "Some shape"
+        assert shape.is_decorative is True
+
+    @pytest.mark.parametrize(
         ("shape_cxml", "expected_x", "expected_y"),
         [
             ("p:cxnSp/p:spPr", None, None),
