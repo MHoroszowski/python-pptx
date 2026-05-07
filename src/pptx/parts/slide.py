@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import copy
 import re
+import secrets
 from io import BytesIO
 from typing import IO, TYPE_CHECKING, cast
 
@@ -293,6 +294,9 @@ class SlidePart(BaseSlidePart):
 # ---------------------------------------------------------------------------
 
 _RELS_NS = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+_P_NS = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+_P14_NS = "{http://schemas.microsoft.com/office/powerpoint/2010/main}"
+_OOXML_LAYOUT_ID_FLOOR = 2147483648  # uint32 floor per ECMA-376 sec 19.2.1.27.
 
 # Reltypes filtered out during slide duplication. NOTES_SLIDE is wired
 # explicitly by |Slides.duplicate| so the new notes-slide back-references
@@ -382,6 +386,13 @@ class _PortContext:
         self._master_map: dict[Part, Part] = {}
         self._layout_map: dict[Part, Part] = {}
         self._theme_map: dict[Part, Part] = {}
+        # ---unified id pool: master ids and layout ids share one pool per
+        #    OOXML spec, and PowerPoint enforces uniqueness across both.
+        #    Both `_add_sldMasterId_to_presentation` and
+        #    `_renumber_sldLayoutIds` allocate from this set and update it
+        #    so sequential master ports don't collide with each other or
+        #    with target's existing layout ids.
+        self._used_layout_ids = _used_master_layout_ids_in_target(target_pres_part)
 
     # -- Public entry point ---------------------------------------------------
 
@@ -512,6 +523,7 @@ class _PortContext:
 
         new_partname = self.target_package.next_partname("/ppt/slideLayouts/slideLayout%d.xml")
         new_element = copy.deepcopy(src_layout_part._element)
+        _refresh_creation_ids(new_element)
         new_layout_part = SlideLayoutPart(
             new_partname, src_layout_part.content_type, self.target_package, new_element
         )
@@ -537,11 +549,18 @@ class _PortContext:
         if src_master_part in self._master_map:
             return cast(SlideMasterPart, self._master_map[src_master_part])
 
-        # 1. Create new master part (deep-copy element)
+        # 1. Create new master part (deep-copy element).
+        #    `<p14:creationId val>` is deterministic in default.pptx, so
+        #    deepcopied creationIds collide with target's; refresh now.
+        #    sldLayoutId renumbering is deferred to step 3 so layout ids
+        #    end up ABOVE the new master's id — PowerPoint's own repair
+        #    output matches this ordering and ECMA-376 sec 19.2.1.34 /
+        #    19.2.1.27 confirm master and layout ids share one pool.
         new_master_partname = self.target_package.next_partname(
             "/ppt/slideMasters/slideMaster%d.xml"
         )
         new_element = copy.deepcopy(src_master_part._element)
+        _refresh_creation_ids(new_element)
         new_master_part = SlideMasterPart(
             new_master_partname,
             src_master_part.content_type,
@@ -550,9 +569,16 @@ class _PortContext:
         )
         # 2. Register in map + relate to presentation FIRST so iter_parts
         #    reaches the master before any subsequent next_partname call.
+        #    Allocate the new master's id from the unified master/layout
+        #    pool — collision with an existing layout id flags repair.
         self._master_map[src_master_part] = new_master_part
         new_master_rId = self.target_pres_part.relate_to(new_master_part, RT.SLIDE_MASTER)
-        _add_sldMasterId_to_presentation(self.target_pres_part, new_master_rId)
+        _add_sldMasterId_to_presentation(
+            self.target_pres_part, new_master_rId, self._used_layout_ids
+        )
+        # 3. Renumber the deepcopied sldLayoutIds NOW, after the master id
+        #    has consumed its slot in the pool, so layouts land above it.
+        _renumber_sldLayoutIds(new_element, self._used_layout_ids)
 
         # 3. For each source layout owned by this master: create + register
         #    + relate to the master IMMEDIATELY (before next next_partname).
@@ -567,6 +593,7 @@ class _PortContext:
                 "/ppt/slideLayouts/slideLayout%d.xml"
             )
             new_layout_element = copy.deepcopy(src_layout._element)
+            _refresh_creation_ids(new_layout_element)
             new_layout = SlideLayoutPart(
                 new_layout_partname,
                 src_layout.content_type,
@@ -761,25 +788,102 @@ def _duplicate_blob_part_into(src: Part, target_package) -> Part:
     return cls(new_partname, src.content_type, target_package, src.blob)
 
 
-def _add_sldMasterId_to_presentation(pres_part: PresentationPart, rId: str) -> None:
+def _used_master_layout_ids_in_target(pres_part: PresentationPart) -> set[int]:
+    """Return every `<p:sldMasterId>` AND `<p:sldLayoutId>` `id` in target.
+
+    PowerPoint enforces uniqueness across the SHARED master/layout id pool
+    (per ECMA-376 sec 19.2.1.34 sldMasterId / sec 19.2.1.27 sldLayoutId,
+    both consume the same conceptual identifier space). A new master id
+    that collides with an existing layout id flags the file for repair on
+    load.
+    """
+    used: set[int] = set()
+    sldMasterIdLst = pres_part._element.find(f"{_P_NS}sldMasterIdLst")
+    if sldMasterIdLst is not None:
+        for smi in sldMasterIdLst.findall(f"{_P_NS}sldMasterId"):
+            raw = smi.get("id")
+            if raw is None:
+                continue
+            with contextlib.suppress(ValueError):
+                used.add(int(raw))
+    for rel in pres_part.rels.values():
+        if rel.is_external or rel.reltype != RT.SLIDE_MASTER:
+            continue
+        master_element = rel.target_part._element
+        sldLayoutIdLst = master_element.find(f"{_P_NS}sldLayoutIdLst")
+        if sldLayoutIdLst is None:
+            continue
+        for sli in sldLayoutIdLst.findall(f"{_P_NS}sldLayoutId"):
+            raw = sli.get("id")
+            if raw is None:
+                continue
+            with contextlib.suppress(ValueError):
+                used.add(int(raw))
+    return used
+
+
+def _renumber_sldLayoutIds(element, used_ids: set[int]) -> None:
+    """Reassign `<p:sldLayoutId>` `id` attributes on a deepcopied master.
+
+    Mutates `used_ids` in place so back-to-back ports of multiple masters
+    keep allocating unique ids relative to one another, not just relative
+    to target's pre-existing masters.
+    """
+    sldLayoutIdLst = element.find(f"{_P_NS}sldLayoutIdLst")
+    if sldLayoutIdLst is None:
+        return
+    next_id = max(used_ids | {_OOXML_LAYOUT_ID_FLOOR - 1}) + 1
+    for sli in sldLayoutIdLst.findall(f"{_P_NS}sldLayoutId"):
+        sli.set("id", str(next_id))
+        used_ids.add(next_id)
+        next_id += 1
+
+
+def _refresh_creation_ids(element) -> None:
+    """Reassign every `<p14:creationId val>` to a fresh uint32 value.
+
+    The default `default.pptx` ships with deterministic vals on each
+    master / layout `<p14:creationId>`, so two presentations built from
+    it carry identical vals. PowerPoint flags those as bad content.
+    Replacing the val (rather than stripping the element) keeps the
+    extLst structure PowerPoint expects intact.
+    """
+    creation_id_tag = f"{_P14_NS}creationId"
+    for node in element.iter(creation_id_tag):
+        # 32-bit unsigned, cryptographically strong enough for collision avoidance.
+        node.set("val", str(secrets.randbits(32)))
+
+
+def _add_sldMasterId_to_presentation(
+    pres_part: PresentationPart, rId: str, used_ids: set[int] | None = None
+) -> None:
     """Append a `<p:sldMasterId>` to the presentation, allocating an id.
 
     Slide-master ids in OOXML are required uint32 values typically in the
     high range (default first master is `2147483648`). python-pptx's
     `CT_SlideMasterIdListEntry` only declares the `rId` attribute, so we
     set / read `id` directly on the lxml element to round-trip cleanly.
+
+    `used_ids`, when supplied, is the unified master/layout id pool. The
+    new id is taken above its current max and added to it; PowerPoint
+    enforces master/layout id uniqueness across this shared pool, and a
+    collision flags the file for repair on load. When `used_ids` is None,
+    only existing sldMasterId values are scanned (back-compat for any
+    out-of-band caller).
     """
     sldMasterIdLst = pres_part._element.get_or_add_sldMasterIdLst()
-    used_ids: list[int] = []
-    for sm in sldMasterIdLst.sldMasterId_lst:
-        raw = sm.get("id")
-        if raw is not None:
-            with contextlib.suppress(ValueError):
-                used_ids.append(int(raw))
-    next_id = max(used_ids + [2147483647]) + 1
+    if used_ids is None:
+        used_ids = set()
+        for sm in sldMasterIdLst.sldMasterId_lst:
+            raw = sm.get("id")
+            if raw is not None:
+                with contextlib.suppress(ValueError):
+                    used_ids.add(int(raw))
+    next_id = max(used_ids | {_OOXML_LAYOUT_ID_FLOOR - 1}) + 1
     sldMasterId = sldMasterIdLst._add_sldMasterId()
     sldMasterId.rId = rId
     sldMasterId.set("id", str(next_id))
+    used_ids.add(next_id)
 
 
 def _add_sldLayoutId_to_master(master_part, rId: str) -> None:

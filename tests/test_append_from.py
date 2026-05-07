@@ -527,3 +527,122 @@ class DescribePresentation_AppendFrom_Antis(object):
 
         with pytest.raises(KeyError):
             new_slide.part.part_related_by(RT.COMMENTS)
+
+
+# ---------------------------------------------------------------------------
+# PowerPoint round-trip integrity (uniqueness of OOXML-spec ID attrs).
+# ---------------------------------------------------------------------------
+
+
+class DescribePresentation_AppendFrom_OOXMLIntegrity(object):
+    """PowerPoint flags 'bad content / repair' on collisions across masters.
+
+    Two distinct collision classes appear when porting a master from a
+    source presentation that was built from the same default template as
+    the target:
+
+    1. ``<p:sldLayoutId id="...">`` — the deepcopy carries source's layout
+       ids verbatim, which match target's already-existing master's ids.
+    2. ``<p14:creationId val="...">`` — the default ``default.pptx`` ships
+       with a deterministic creationId on every master and layout, so
+       both masters and every parallel layout end up with identical vals.
+
+    Both surface only after a save -> reopen, hence the zip-level checks.
+    """
+
+    def _save_to_zip(self, prs):
+        import zipfile
+
+        buf = io.BytesIO()
+        prs.save(buf)
+        buf.seek(0)
+        return zipfile.ZipFile(buf)
+
+    def it_assigns_unique_sldLayoutId_values_across_masters(self):
+        import re
+
+        src = _seed_presentation_with(1)
+        tgt = Presentation()
+
+        tgt.append_from(src)
+
+        with self._save_to_zip(tgt) as zf:
+            all_ids: list[str] = []
+            for n in zf.namelist():
+                if not (n.startswith("ppt/slideMasters/slideMaster") and n.endswith(".xml")):
+                    continue
+                xml = zf.read(n).decode()
+                all_ids.extend(re.findall(r'<p:sldLayoutId id="(\d+)"', xml))
+
+        assert len(all_ids) == len(set(all_ids)), (
+            "duplicate sldLayoutId across masters: %r" % all_ids
+        )
+
+    def it_assigns_master_id_outside_existing_layout_id_pool(self):
+        """sldMasterId and sldLayoutId share one id pool per ECMA-376.
+
+        Regression for the PowerPoint-repair trigger where the new master's
+        id collided with target's existing master's first layout id (both
+        landed at 2147483649 because the master-id allocator only consulted
+        master ids). PowerPoint flagged the file as bad content.
+        """
+        import re
+
+        src = _seed_presentation_with(1)
+        tgt = Presentation()
+
+        tgt.append_from(src)
+
+        with self._save_to_zip(tgt) as zf:
+            pres_xml = zf.read("ppt/presentation.xml").decode()
+            master_ids = set(re.findall(r'<p:sldMasterId[^/]*\bid="(\d+)"', pres_xml))
+            layout_ids: set[str] = set()
+            for n in zf.namelist():
+                if not (n.startswith("ppt/slideMasters/slideMaster") and n.endswith(".xml")):
+                    continue
+                xml = zf.read(n).decode()
+                layout_ids.update(re.findall(r'<p:sldLayoutId id="(\d+)"', xml))
+
+        assert master_ids.isdisjoint(layout_ids), (
+            "master id collides with a layout id: master=%r layouts=%r" % (master_ids, layout_ids)
+        )
+
+    def it_does_not_duplicate_p14_creationId_across_masters(self):
+        import re
+
+        src = _seed_presentation_with(1)
+        tgt = Presentation()
+
+        tgt.append_from(src)
+
+        with self._save_to_zip(tgt) as zf:
+            master_creation_ids: list[str] = []
+            for n in zf.namelist():
+                if not (n.startswith("ppt/slideMasters/slideMaster") and n.endswith(".xml")):
+                    continue
+                xml = zf.read(n).decode()
+                master_creation_ids.extend(re.findall(r'creationId[^>]*val="([^"]+)"', xml))
+
+        assert len(master_creation_ids) == len(set(master_creation_ids)), (
+            "duplicate master creationId: %r" % master_creation_ids
+        )
+
+    def it_does_not_duplicate_p14_creationId_across_layouts(self):
+        import re
+
+        src = _seed_presentation_with(1)
+        tgt = Presentation()
+
+        tgt.append_from(src)
+
+        with self._save_to_zip(tgt) as zf:
+            layout_creation_ids: list[str] = []
+            for n in zf.namelist():
+                if not (n.startswith("ppt/slideLayouts/slideLayout") and n.endswith(".xml")):
+                    continue
+                xml = zf.read(n).decode()
+                layout_creation_ids.extend(re.findall(r'creationId[^>]*val="([^"]+)"', xml))
+
+        assert len(layout_creation_ids) == len(set(layout_creation_ids)), (
+            "duplicate layout creationId: %r" % layout_creation_ids
+        )
