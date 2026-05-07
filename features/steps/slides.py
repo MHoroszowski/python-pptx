@@ -236,3 +236,77 @@ def then_duplicate_index_99_raises(context):
 
     with pytest.raises(IndexError):
         context.slides.duplicate(context.slides[0], index=99)
+
+
+# -- append_from steps -----------------------------------------------------
+
+
+@given("two seeded presentations source and target")
+def given_two_seeded_presentations(context):
+    from pptx.util import Inches
+
+    src = Presentation()
+    layout = src.slide_layouts[6]
+    for i in range(3):
+        s = src.slides.add_slide(layout)
+        s.shapes.add_textbox(Inches(1), Inches(1), Inches(2), Inches(1)).text_frame.text = (
+            "src %d" % i
+        )
+    tgt = Presentation()
+    tgt.slides.add_slide(tgt.slide_layouts[6])
+    context.source_pres = src
+    context.target_pres = tgt
+    context.target_slides_before = len(tgt.slides)
+    context.target_masters_before = sum(1 for _ in tgt.slide_masters)
+
+
+@when("I call target.append_from(source)")
+def when_target_append_from_source_all(context):
+    context.new_slides = context.target_pres.append_from(context.source_pres)
+
+
+@when("I call target.append_from(source, slide_indexes=[0, 1])")
+def when_target_append_from_source_indexes_0_1(context):
+    context.new_slides = context.target_pres.append_from(
+        context.source_pres, slide_indexes=[0, 1]
+    )
+
+
+@when("I call target.append_from(source, slide_indexes=[])")
+def when_target_append_from_source_indexes_empty(context):
+    context.new_slides = context.target_pres.append_from(context.source_pres, slide_indexes=[])
+
+
+@then("target's slide count grew by source's slide count")
+def then_target_grew_by_source_slide_count(context):
+    expected = context.target_slides_before + len(context.source_pres.slides)
+    actual = len(context.target_pres.slides)
+    assert actual == expected, "expected %d slides, got %d" % (expected, actual)
+
+
+@then("target's master count grew by 1")
+def then_target_master_count_grew_by_1(context):
+    actual = sum(1 for _ in context.target_pres.slide_masters)
+    assert actual == context.target_masters_before + 1, (
+        "expected %d masters, got %d" % (context.target_masters_before + 1, actual)
+    )
+
+
+@then("target's slide count grew by 2")
+def then_target_slide_count_grew_by_2(context):
+    actual = len(context.target_pres.slides)
+    assert actual == context.target_slides_before + 2
+
+
+@then("target's slide count is unchanged")
+def then_target_slide_count_unchanged(context):
+    actual = len(context.target_pres.slides)
+    assert actual == context.target_slides_before
+
+
+@then("calling target.append_from(source, slide_indexes=[99]) raises IndexError")
+def then_append_from_index_99_raises(context):
+    import pytest
+
+    with pytest.raises(IndexError):
+        context.target_pres.append_from(context.source_pres, slide_indexes=[99])
