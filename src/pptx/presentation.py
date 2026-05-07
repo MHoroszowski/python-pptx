@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from typing import IO, TYPE_CHECKING, cast
+from typing import IO, TYPE_CHECKING, Iterable, cast
 
+from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.shared import PartElementProxy
 from pptx.slide import SlideMasters, Slides
 from pptx.util import lazyproperty
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
     from pptx.custom_xml import CustomXmlParts
     from pptx.oxml.presentation import CT_Presentation, CT_SlideId
     from pptx.parts.presentation import PresentationPart
-    from pptx.slide import NotesMaster, SlideLayouts
+    from pptx.slide import NotesMaster, Slide, SlideLayouts
     from pptx.util import Length
 
 
@@ -134,3 +135,73 @@ class Presentation(PartElementProxy):
         sldIdLst = self._element.get_or_add_sldIdLst()
         self.part.rename_slide_parts([cast("CT_SlideId", sldId).rId for sldId in sldIdLst])
         return Slides(sldIdLst, self)
+
+    def append_from(
+        self,
+        other_pres: Presentation,
+        slide_indexes: Iterable[int] | None = None,
+    ) -> list[Slide]:
+        """Append slides from `other_pres` onto the end of this presentation.
+
+        When `slide_indexes` is |None| (the default), every slide of
+        `other_pres` is appended in source order. When `slide_indexes` is
+        an iterable of zero-based ints, only those slides are appended
+        (in the iteration order, allowing reordering via index sequence).
+
+        Each appended slide brings along — into this presentation's
+        package — its own deep-copied ``<p:sld>`` element, its
+        slide-layout, the slide-master that layout belongs to (with
+        ALL of that master's layouts, to keep the master's layout tree
+        intact), the master's theme, and any per-slide private parts
+        (chart, OLE-object, notes-slide). Image and embedded-media
+        parts dedupe at the target package by SHA1 of bytes — an image
+        already present in this presentation's package is reused, not
+        copied.
+
+        Within a single ``append_from`` call, source slide-masters
+        (and their layouts and themes) are ported exactly once even
+        when shared by multiple appended slides. Two consecutive
+        ``append_from`` calls do NOT share that cache, so calling
+        twice in succession ports the master twice — pass all wanted
+        slides in a single call to keep the part graph compact.
+
+        Comments parts on the source slides are dropped (consistent
+        with Phase 2 of issue #11). Notes-slides on the source bring
+        their own deep-copied notes-slide part; the notes-master is
+        this presentation's existing notes-master, NOT a port of
+        the source's.
+
+        Returns the list of newly-added |Slide| objects in insertion
+        order — same length as the number of slides actually appended.
+
+        Raises |IndexError| if any value in `slide_indexes` is out of
+        range for ``other_pres.slides``.
+        """
+        from pptx.parts.slide import _PortContext, duplicate_notes_slide_for  # noqa: F401
+
+        if slide_indexes is None:
+            source_slides = list(other_pres.slides)
+        else:
+            indexes = list(slide_indexes)
+            n_source = len(other_pres.slides)
+            for idx in indexes:
+                if idx < 0 or idx >= n_source:
+                    raise IndexError("slide index out of range")
+            source_slides = [other_pres.slides[i] for i in indexes]
+
+        if not source_slides:
+            return []
+
+        ctx = _PortContext(self.part)
+        sldIdLst = self._element.get_or_add_sldIdLst()
+        new_slides: list[Slide] = []
+
+        for src_slide in source_slides:
+            new_slide_part = ctx.port_slide(src_slide.part)
+            new_rId = self.part.relate_to(new_slide_part, RT.SLIDE)
+            sldIdLst.add_sldId(new_rId)
+            if src_slide.part.has_notes_slide:
+                ctx.port_notes_slide(src_slide.part, new_slide_part)
+            new_slides.append(new_slide_part.slide)
+
+        return new_slides
