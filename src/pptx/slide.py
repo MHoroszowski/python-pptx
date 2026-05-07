@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Iterator, cast
 
 from pptx.dml.fill import FillFormat
 from pptx.enum.shapes import PP_PLACEHOLDER
+from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.shapes.shapetree import (
     LayoutPlaceholders,
     LayoutShapes,
@@ -259,6 +260,19 @@ class Slide(_BaseSlide):
         prs = self.part.package.presentation_part.presentation
         prs.slides.remove(self)
 
+    def duplicate(self, index: int | None = None) -> Slide:
+        """Return a deep copy of this slide added to the parent presentation.
+
+        Convenience alias delegating to :meth:`Slides.duplicate`. The duplicate
+        is inserted at zero-based `index`; when `index` is |None|, the
+        duplicate sits at ``self_index + 1`` — immediately after this slide.
+
+        See :meth:`Slides.duplicate` for full semantics on dedup, notes-slide
+        handling, and round-trip behavior.
+        """
+        prs = self.part.package.presentation_part.presentation
+        return prs.slides.duplicate(self, index)
+
 
 class Slides(ParentedElementProxy):
     """Sequence of slides belonging to an instance of |Presentation|.
@@ -300,9 +314,9 @@ class Slides(ParentedElementProxy):
         are not supported; pass an explicit position. Raises |IndexError| if
         `index` is out of range (negative, or greater than `len(self)`).
 
-        Companion operations: :meth:`remove`, :meth:`move`. Cross-deck copy
-        (``Presentation.append_from``) and ``Slide.duplicate`` are tracked
-        under issue #11 (Phase 2/3) and not yet implemented.
+        Companion operations: :meth:`remove`, :meth:`move`,
+        :meth:`duplicate`. Cross-deck copy (``Presentation.append_from``)
+        is tracked under issue #11 (Phase 3) and not yet implemented.
         """
         # ---validate index BEFORE creating the new SlidePart so a bad index
         #    does not leak a partial part into the package---
@@ -367,6 +381,49 @@ class Slides(ParentedElementProxy):
         target_rId = sldId.rId
         self._sldIdLst.remove_sldId(sldId)
         self.part.drop_rel(target_rId)
+
+    def duplicate(self, slide: Slide, index: int | None = None) -> Slide:
+        """Return a deep copy of `slide` added to this collection.
+
+        The duplicate is inserted at zero-based position `index`. When
+        `index` is |None| (the default), the new slide is inserted at
+        ``source_index + 1`` — immediately after `slide`. ``index`` may
+        equal ``len(self)`` to append explicitly. Negative indices are
+        not supported.
+
+        Image, media, slide-layout, and slide-master parts are shared
+        with the source via package-level dedup — duplicating a slide
+        that contains pictures does NOT increase the deck's image-part
+        count. Chart parts, OLE-object parts, and the notes-slide (when
+        present) are deep-copied so edits to the duplicate don't bleed
+        back into the source. Comments parts (if any) are dropped —
+        deferred to a later phase of issue #11.
+
+        Raises |ValueError| if `slide` is not a member of this
+        collection. Raises |IndexError| if `index` is out of range
+        (negative or greater than `len(self)`).
+        """
+        from pptx.parts.slide import duplicate_notes_slide_for
+
+        # ---validate membership BEFORE doing any work; raises ValueError if absent---
+        src_idx = self.index(slide)
+        if index is None:
+            index = src_idx + 1
+        if index < 0 or index > len(self._sldIdLst):
+            raise IndexError("slide index out of range")
+
+        src_part = slide.part
+        new_slide_part = src_part.duplicate()
+
+        # ---register new slide part with presentation; this allocates an rId---
+        new_rId = self.part.relate_to(new_slide_part, RT.SLIDE)
+        self._sldIdLst.insert_sldId_at(new_rId, index)
+
+        # ---if source had a notes-slide, give the duplicate its own---
+        if src_part.has_notes_slide:
+            duplicate_notes_slide_for(src_part, new_slide_part)
+
+        return new_slide_part.slide
 
 
 class SlideLayout(_BaseSlide):

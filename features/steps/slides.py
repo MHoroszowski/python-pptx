@@ -73,6 +73,21 @@ def when_I_call_slide_delete(context):
     context.slides[1].delete()
 
 
+@when("I call slides.duplicate(slides[0])")
+def when_I_call_slides_duplicate_default_index(context):
+    context.new_slide = context.slides.duplicate(context.slides[0])
+
+
+@when("I call slides.duplicate(slides[0], index=3)")
+def when_I_call_slides_duplicate_index_3(context):
+    context.new_slide = context.slides.duplicate(context.slides[0], index=3)
+
+
+@when("I call slides[1].duplicate()")
+def when_I_call_slide_duplicate_alias(context):
+    context.new_slide = context.slides[1].duplicate()
+
+
 # then ====================================================
 
 
@@ -192,3 +207,32 @@ def then_surviving_slide_order_matches_0_2(context):
     expected = [o[0], o[2]]
     actual = [s.slide_id for s in context.slides]
     assert actual == expected, "expected %r, got %r" % (expected, actual)
+
+
+@then("the duplicate is at index {idx:d}")
+def then_the_duplicate_is_at_index(context, idx):
+    assert context.slides[idx].slide_id == context.new_slide.slide_id, (
+        "expected duplicate at index %d, got slide_id mismatch" % idx
+    )
+
+
+@then("the source slide is still at index 0")
+def then_source_slide_still_at_index_0(context):
+    assert context.slides[0].slide_id == context.original_slide_ids[0], (
+        "source slide moved off index 0"
+    )
+
+
+@then("the duplicate slide_id is unique")
+def then_duplicate_slide_id_is_unique(context):
+    assert context.new_slide.slide_id not in context.original_slide_ids, (
+        "duplicate slide_id collides with an existing slide"
+    )
+
+
+@then("calling slides.duplicate(slides[0], index=99) raises IndexError")
+def then_duplicate_index_99_raises(context):
+    import pytest
+
+    with pytest.raises(IndexError):
+        context.slides.duplicate(context.slides[0], index=99)

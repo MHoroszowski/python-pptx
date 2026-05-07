@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import copy
+import re
 from typing import IO, TYPE_CHECKING, cast
 
 from pptx.enum.shapes import PROG_ID
 from pptx.opc.constants import CONTENT_TYPE as CT
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
-from pptx.opc.package import XmlPart
+from pptx.opc.package import Part, XmlPart
 from pptx.opc.packuri import PackURI
 from pptx.oxml.slide import CT_NotesMaster, CT_NotesSlide, CT_Slide
 from pptx.oxml.theme import CT_OfficeStyleSheet
@@ -258,6 +260,173 @@ class SlidePart(BaseSlidePart):
         notes_slide_part = NotesSlidePart.new(self.package, self)
         self.relate_to(notes_slide_part, RT.NOTES_SLIDE)
         return notes_slide_part
+
+    def duplicate(self) -> SlidePart:
+        """Return a new |SlidePart| that is a deep copy of this one.
+
+        Image, media, slide-layout, and slide-master rels are reused —
+        the duplicate references the same package-level parts as the
+        source. Chart, OLE-embedded, and embedded-package parts are
+        deep-copied per duplicate. The notes-slide rel and any
+        comments rels are NOT carried over: notes-slide rewiring is
+        the caller's job (see |Slides.duplicate|), and comments are
+        out of scope for Phase 2 of issue #11.
+        """
+        new_partname = self._package.next_partname("/ppt/slides/slide%d.xml")
+        new_element = copy.deepcopy(self._element)
+        new_part = SlidePart(new_partname, CT.PML_SLIDE, self._package, new_element)
+
+        rId_map = _replicate_rels_for_duplicate(self, new_part)
+        _remap_rId_attrs(new_element, rId_map)
+
+        return new_part
+
+
+# ---------------------------------------------------------------------------
+# Module-level helpers for slide / slide-private part duplication.
+# ---------------------------------------------------------------------------
+
+_RELS_NS = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+
+# Reltypes filtered out during slide duplication. NOTES_SLIDE is wired
+# explicitly by |Slides.duplicate| so the new notes-slide back-references
+# the new parent slide. Comments are dropped — Phase 2 scope (issue #11).
+_DUP_DROP_RELTYPES_SLIDE = frozenset({RT.NOTES_SLIDE, RT.COMMENTS, RT.COMMENT_AUTHORS})
+
+
+def _replicate_rels_for_duplicate(src_part: Part, new_part: Part) -> dict[str, str]:
+    """Mirror src_part's slide-relevant rels onto new_part.
+
+    Returns a `{old_rId: new_rId}` map for rId-attribute remapping.
+    """
+    rId_map: dict[str, str] = {}
+    for rId, rel in src_part.rels.items():
+        if rel.reltype in _DUP_DROP_RELTYPES_SLIDE:
+            continue
+        if rel.is_external:
+            new_rId = new_part.relate_to(rel.target_ref, rel.reltype, is_external=True)
+        elif rel.reltype == RT.CHART:
+            new_target = _duplicate_chart_part(cast(ChartPart, rel.target_part))
+            new_rId = new_part.relate_to(new_target, rel.reltype)
+        elif rel.reltype in (RT.OLE_OBJECT, RT.PACKAGE):
+            new_target = _duplicate_blob_part(cast(Part, rel.target_part))
+            new_rId = new_part.relate_to(new_target, rel.reltype)
+        else:
+            # Shared parts: image, media, video, layout, master, theme, etc.
+            new_rId = new_part.relate_to(rel.target_part, rel.reltype)
+        rId_map[rId] = new_rId
+    return rId_map
+
+
+def _remap_rId_attrs(element, rId_map: dict[str, str]) -> None:
+    """Substitute relationships-namespace attribute values in `element`.
+
+    Walks every descendant element and rewrites any attribute whose name
+    is in the OOXML relationships namespace (catches `r:id`, `r:embed`,
+    `r:link`, `r:pict`, `r:href` in one pass).
+    """
+    for el in element.iter():
+        for attr_name in list(el.attrib):
+            if attr_name.startswith(_RELS_NS):
+                old = el.attrib[attr_name]
+                if old in rId_map:
+                    el.attrib[attr_name] = rId_map[old]
+
+
+def _duplicate_chart_part(src: ChartPart) -> ChartPart:
+    """Return a new ChartPart cloning `src`.
+
+    Chart XML is deep-copied. Embedded data (e.g. an xlsx workbook
+    reached via an `RT.PACKAGE` rel) is binary and must be blob-copied,
+    not deep-copy-of-XML — the workbook IS the chart's data, and the
+    `<c:numCache>` values in the chart XML mirror it.
+    """
+    package = src._package
+    new_partname = package.next_partname("/ppt/charts/chart%d.xml")
+    new_element = copy.deepcopy(src._element)
+    cls = type(src)
+    new_part = cls(new_partname, src.content_type, package, new_element)
+    rId_map: dict[str, str] = {}
+    for rId, rel in src.rels.items():
+        if rel.is_external:
+            new_rId = new_part.relate_to(rel.target_ref, rel.reltype, is_external=True)
+        elif rel.reltype == RT.PACKAGE:
+            new_target = _duplicate_blob_part(cast(Part, rel.target_part))
+            new_rId = new_part.relate_to(new_target, rel.reltype)
+        else:
+            # Theme override and other chart-private parts: share for now.
+            # Practical impact is small; revisit if a user reports it.
+            new_rId = new_part.relate_to(rel.target_part, rel.reltype)
+        rId_map[rId] = new_rId
+    _remap_rId_attrs(new_element, rId_map)
+    return new_part
+
+
+def _duplicate_blob_part(src: Part) -> Part:
+    """Return a new binary |Part| cloning `src`'s blob.
+
+    Used for embedded packages (xlsx, docx, pptx) and OLE objects —
+    parts whose payload is opaque bytes rather than XML.
+    """
+    package = src._package
+    cls = type(src)
+    tmpl = getattr(cls, "partname_template", None)
+    if tmpl is None:
+        tmpl = _derive_partname_template(str(src.partname))
+    new_partname = package.next_partname(tmpl)
+    return cls(new_partname, src.content_type, package, src.blob)
+
+
+def _derive_partname_template(partname: str) -> str:
+    """Derive a `next_partname`-compatible template from an existing partname.
+
+    Replaces the trailing integer (just before the final extension) with
+    `%d`. Falls back to inserting `%d` immediately before the extension
+    if there is no trailing digit run.
+    """
+    match = re.match(r"^(.*?)(\d+)(\.[^./]+)$", partname)
+    if match:
+        prefix, _, ext = match.groups()
+        return f"{prefix}%d{ext}"
+    # No trailing-digit pattern; insert %d before final extension.
+    dot = partname.rfind(".")
+    if dot < 0:
+        return f"{partname}%d"
+    return f"{partname[:dot]}%d{partname[dot:]}"
+
+
+def duplicate_notes_slide_for(
+    src_slide_part: SlidePart, new_slide_part: SlidePart
+) -> NotesSlidePart:
+    """Create a fresh |NotesSlidePart| for `new_slide_part`, cloning content from src.
+
+    Public-to-the-module helper used by |Slides.duplicate| AFTER the new
+    slide part is registered with the presentation rels. Wires the new
+    notes-slide's `RT.SLIDE` back-rel to point at `new_slide_part` (NOT
+    the source) — addresses upstream community gotcha #961 where blindly
+    copying notes rels left the duplicate's notes pointing at the source.
+    """
+    src_notes_part = cast(NotesSlidePart, src_slide_part.part_related_by(RT.NOTES_SLIDE))
+    package = src_slide_part._package
+    new_partname = package.next_partname("/ppt/notesSlides/notesSlide%d.xml")
+    new_element = copy.deepcopy(src_notes_part._element)
+    new_notes_part = NotesSlidePart(new_partname, CT.PML_NOTES_SLIDE, package, new_element)
+
+    rId_map: dict[str, str] = {}
+    for rId, rel in src_notes_part.rels.items():
+        if rel.is_external:
+            new_rId = new_notes_part.relate_to(rel.target_ref, rel.reltype, is_external=True)
+        elif rel.reltype == RT.SLIDE:
+            # ---rewire back-ref to NEW slide part---
+            new_rId = new_notes_part.relate_to(new_slide_part, RT.SLIDE)
+        else:
+            # NOTES_MASTER and any others: share at package level
+            new_rId = new_notes_part.relate_to(rel.target_part, rel.reltype)
+        rId_map[rId] = new_rId
+    _remap_rId_attrs(new_element, rId_map)
+
+    new_slide_part.relate_to(new_notes_part, RT.NOTES_SLIDE)
+    return new_notes_part
 
 
 class SlideLayoutPart(BaseSlidePart):
