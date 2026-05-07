@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Iterator, cast
 
 from pptx.dml.fill import FillFormat
 from pptx.enum.shapes import PP_PLACEHOLDER
+from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.shapes.shapetree import (
     LayoutPlaceholders,
     LayoutShapes,
@@ -246,6 +247,32 @@ class Slide(_BaseSlide):
         """|SlideLayout| object this slide inherits appearance from."""
         return self.part.slide_layout
 
+    def delete(self) -> None:
+        """Remove this slide from its presentation.
+
+        Convenience alias for :meth:`Slides.remove`. After this call, the slide
+        is no longer reachable via the presentation's `slides` collection and
+        its part is dropped from the package on save.
+
+        Raises |ValueError| if this slide is not part of a presentation (e.g.
+        the parent collection cannot be located).
+        """
+        prs = self.part.package.presentation_part.presentation
+        prs.slides.remove(self)
+
+    def duplicate(self, index: int | None = None) -> Slide:
+        """Return a deep copy of this slide added to the parent presentation.
+
+        Convenience alias delegating to :meth:`Slides.duplicate`. The duplicate
+        is inserted at zero-based `index`; when `index` is |None|, the
+        duplicate sits at ``self_index + 1`` — immediately after this slide.
+
+        See :meth:`Slides.duplicate` for full semantics on dedup, notes-slide
+        handling, and round-trip behavior.
+        """
+        prs = self.part.package.presentation_part.presentation
+        return prs.slides.duplicate(self, index)
+
 
 class Slides(ParentedElementProxy):
     """Sequence of slides belonging to an instance of |Presentation|.
@@ -277,11 +304,30 @@ class Slides(ParentedElementProxy):
         """Support len() built-in function, e.g. `len(slides) == 4`."""
         return len(self._sldIdLst)
 
-    def add_slide(self, slide_layout: SlideLayout) -> Slide:
-        """Return a newly added slide that inherits layout from `slide_layout`."""
+    def add_slide(self, slide_layout: SlideLayout, index: int | None = None) -> Slide:
+        """Return a newly added slide that inherits layout from `slide_layout`.
+
+        When `index` is |None| (the default), the new slide is appended to the
+        end of the slide sequence — matching prior behavior. When `index` is
+        an integer, the new slide is inserted at that zero-based position;
+        `index` may equal `len(self)` to append explicitly. Negative indices
+        are not supported; pass an explicit position. Raises |IndexError| if
+        `index` is out of range (negative, or greater than `len(self)`).
+
+        Companion operations: :meth:`remove`, :meth:`move`,
+        :meth:`duplicate`. Cross-deck copy (``Presentation.append_from``)
+        is tracked under issue #11 (Phase 3) and not yet implemented.
+        """
+        # ---validate index BEFORE creating the new SlidePart so a bad index
+        #    does not leak a partial part into the package---
+        if index is not None and (index < 0 or index > len(self._sldIdLst)):
+            raise IndexError("slide index out of range")
         rId, slide = self.part.add_slide(slide_layout)
         slide.shapes.clone_layout_placeholders(slide_layout)
-        self._sldIdLst.add_sldId(rId)
+        if index is None:
+            self._sldIdLst.add_sldId(rId)
+        else:
+            self._sldIdLst.insert_sldId_at(rId, index)
         return slide
 
     def get(self, slide_id: int, default: Slide | None = None) -> Slide | None:
@@ -303,6 +349,81 @@ class Slides(ParentedElementProxy):
             if this_slide == slide:
                 return idx
         raise ValueError("%s is not in slide collection" % slide)
+
+    def move(self, slide: Slide, new_index: int) -> None:
+        """Reposition `slide` to zero-based position `new_index`.
+
+        Raises |ValueError| if `slide` is not a member of this collection,
+        and |IndexError| if `new_index` is out of range (negative or
+        ``>= len(self)``). Section membership (`p14:sectionLst`) references
+        slides by id, not position, so reordering is invisible to sections.
+        """
+        if new_index < 0 or new_index >= len(self):
+            raise IndexError("slide index out of range")
+        idx = self.index(slide)
+        sldId = self._sldIdLst.sldId_lst[idx]
+        self._sldIdLst.move_sldId_to(sldId, new_index)
+
+    def remove(self, slide: Slide) -> None:
+        """Remove `slide` from this collection.
+
+        The slide's relationship is dropped from the presentation part. The
+        underlying slide part falls out of the package on the next save.
+        Image and other media parts referenced only by the removed slide
+        likewise drop out — but image parts shared with surviving slides
+        (e.g. the same picture inserted on two slides) are preserved.
+        Raises |ValueError| if `slide` is not a member of this collection.
+        After this call, references to `slide` are stale; behavior of method
+        calls on the removed `Slide` instance is undefined.
+        """
+        idx = self.index(slide)
+        sldId = self._sldIdLst.sldId_lst[idx]
+        target_rId = sldId.rId
+        self._sldIdLst.remove_sldId(sldId)
+        self.part.drop_rel(target_rId)
+
+    def duplicate(self, slide: Slide, index: int | None = None) -> Slide:
+        """Return a deep copy of `slide` added to this collection.
+
+        The duplicate is inserted at zero-based position `index`. When
+        `index` is |None| (the default), the new slide is inserted at
+        ``source_index + 1`` — immediately after `slide`. ``index`` may
+        equal ``len(self)`` to append explicitly. Negative indices are
+        not supported.
+
+        Image, media, slide-layout, and slide-master parts are shared
+        with the source via package-level dedup — duplicating a slide
+        that contains pictures does NOT increase the deck's image-part
+        count. Chart parts, OLE-object parts, and the notes-slide (when
+        present) are deep-copied so edits to the duplicate don't bleed
+        back into the source. Comments parts (if any) are dropped —
+        deferred to a later phase of issue #11.
+
+        Raises |ValueError| if `slide` is not a member of this
+        collection. Raises |IndexError| if `index` is out of range
+        (negative or greater than `len(self)`).
+        """
+        from pptx.parts.slide import duplicate_notes_slide_for
+
+        # ---validate membership BEFORE doing any work; raises ValueError if absent---
+        src_idx = self.index(slide)
+        if index is None:
+            index = src_idx + 1
+        if index < 0 or index > len(self._sldIdLst):
+            raise IndexError("slide index out of range")
+
+        src_part = slide.part
+        new_slide_part = src_part.duplicate()
+
+        # ---register new slide part with presentation; this allocates an rId---
+        new_rId = self.part.relate_to(new_slide_part, RT.SLIDE)
+        self._sldIdLst.insert_sldId_at(new_rId, index)
+
+        # ---if source had a notes-slide, give the duplicate its own---
+        if src_part.has_notes_slide:
+            duplicate_notes_slide_for(src_part, new_slide_part)
+
+        return new_slide_part.slide
 
 
 class SlideLayout(_BaseSlide):
