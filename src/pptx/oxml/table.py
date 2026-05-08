@@ -503,12 +503,68 @@ class CT_TableGrid(BaseOxmlElement):
 class CT_TableProperties(BaseOxmlElement):
     """`a:tblPr` custom element class."""
 
+    get_or_add_tableStyleId: Callable[[], "CT_TableStyleId"]
+    _add_tableStyleId: Callable[[], "CT_TableStyleId"]
+    _remove_tableStyleId: Callable[[], None]
+
+    # ---ECMA-376 §21.1.3.15 sequence for `<a:tblPr>`: a `tableStyle | tableStyleId`
+    # ---choice followed by `extLst`. `tableStyleId` must therefore come BEFORE
+    # ---any `extLst` sibling that a PowerPoint-authored deck may already carry —
+    # ---xmlchemy inserts new children before the named successor, so listing
+    # ---`a:extLst` here keeps `tableStyleId` ahead of it. The inline-definition
+    # ---variant `<a:tableStyle>` is intentionally not modeled in Phase 2 (decks
+    # ---with inline style definitions on `tblPr` will still round-trip the raw
+    # ---element via lxml, but `Table.style_id`/`style_name` will report `None`).
+    tableStyleId: "CT_TableStyleId | None" = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
+        "a:tableStyleId", successors=("a:extLst",)
+    )
+
     bandRow = OptionalAttribute("bandRow", XsdBoolean, default=False)
     bandCol = OptionalAttribute("bandCol", XsdBoolean, default=False)
     firstRow = OptionalAttribute("firstRow", XsdBoolean, default=False)
     firstCol = OptionalAttribute("firstCol", XsdBoolean, default=False)
     lastRow = OptionalAttribute("lastRow", XsdBoolean, default=False)
     lastCol = OptionalAttribute("lastCol", XsdBoolean, default=False)
+
+    @property
+    def style_id(self) -> str | None:
+        """GUID string from `<a:tableStyleId>` child, or |None| when absent.
+
+        Returns the canonical brace-wrapped upper-case-hex shape PowerPoint
+        emits, e.g. ``"{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"``.
+        """
+        elm = self.tableStyleId
+        if elm is None:
+            return None
+        return elm.value
+
+    @style_id.setter
+    def style_id(self, value: str | None) -> None:
+        """Set the `<a:tableStyleId>` text to `value`, or remove the element when |None|."""
+        if value is None:
+            if self.tableStyleId is not None:
+                self._remove_tableStyleId()
+            return
+        tableStyleId = self.get_or_add_tableStyleId()
+        tableStyleId.value = value
+
+
+class CT_TableStyleId(BaseOxmlElement):
+    """`a:tableStyleId` custom element class.
+
+    Element with simple GUID text content referencing a table style by id —
+    typically a built-in style like ``{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}``
+    (Medium Style 2 - Accent 1).
+    """
+
+    @property
+    def value(self) -> str:
+        """The GUID string held in this element's text content."""
+        return self.text or ""
+
+    @value.setter
+    def value(self, val: str) -> None:
+        self.text = val
 
 
 class CT_TableRow(BaseOxmlElement):
