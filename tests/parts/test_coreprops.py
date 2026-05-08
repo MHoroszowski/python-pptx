@@ -64,8 +64,12 @@ class DescribeCorePropertiesPart(object):
     @pytest.mark.parametrize(
         ("prop_name", "expected_value"),
         [
-            ("created", dt.datetime(2012, 11, 17, 16, 37, 40)),
-            ("last_printed", dt.datetime(2014, 6, 4, 4, 28)),
+            # ---fixture XML uses 'Z' suffix on these dates, so the parser
+            # ---returns tz-aware datetimes (issue #29 Phase 2 fix). Naive
+            # ---values would be returned only for input strings without
+            # ---a timezone marker.
+            ("created", dt.datetime(2012, 11, 17, 16, 37, 40, tzinfo=dt.timezone.utc)),
+            ("last_printed", dt.datetime(2014, 6, 4, 4, 28, tzinfo=dt.timezone.utc)),
             ("modified", None),
         ],
     )
@@ -145,10 +149,11 @@ class DescribeCorePropertiesPart(object):
         assert core_props.revision == 1
         assert core_props.modified is not None
         # core_props.modified only stores time with seconds resolution, so
-        # comparison needs to be a little loose (within two seconds)
-        modified_timedelta = (
-            dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) - core_props.modified
-        )
+        # comparison needs to be a little loose (within two seconds). Issue
+        # #29 Phase 2 makes the parser return a tz-aware datetime when the
+        # source string carries a 'Z' suffix; the default-constructor path
+        # writes the modified field with 'Z', so the reload returns UTC.
+        modified_timedelta = dt.datetime.now(dt.timezone.utc) - core_props.modified
         max_expected_timedelta = dt.timedelta(seconds=2)
         assert modified_timedelta < max_expected_timedelta
 

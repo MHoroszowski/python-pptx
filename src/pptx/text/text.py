@@ -309,11 +309,18 @@ class Font(object):
         self._rPr.b = value
 
     @lazyproperty
-    def color(self) -> ColorFormat:
-        """The |ColorFormat| instance that provides access to the color settings for this font."""
-        if self.fill.type != MSO_FILL.SOLID:
-            self.fill.solid()
-        return self.fill.fore_color
+    def color(self) -> "_LazyFontColorFormat":
+        """The |ColorFormat| instance that provides access to the color settings for this font.
+
+        Reading from the returned object on a font with no `<a:solidFill>` does not modify
+        the underlying XML — `font.color.type` and `font.color.rgb` simply return |None|.
+        Setting any color property (`rgb`, `theme_color`, `brightness`) materializes
+        `<a:solidFill>` lazily on first write, then delegates to the real |ColorFormat|.
+
+        Closes scanny/python-pptx#1111 and #1074 — the prior implementation called
+        ``self.fill.solid()`` on every read, mutating the document on access.
+        """
+        return _LazyFontColorFormat(self)
 
     @lazyproperty
     def fill(self) -> FillFormat:
@@ -426,6 +433,95 @@ class Font(object):
         elif value is False:
             value = MSO_UNDERLINE.NONE
         self._element.u = value
+
+
+class _LazyFontColorFormat:
+    """ColorFormat-shaped proxy that defers `<a:solidFill/>` creation until first SET.
+
+    Wraps a |Font| instance. On reads (``type``, ``rgb``, ``theme_color``,
+    ``brightness``, ``transparency``), if the font has no solid fill the proxy
+    returns |None| / inherit values without modifying the XML. On writes,
+    materializes ``<a:solidFill/>`` via ``font.fill.solid()`` and delegates to the
+    real |ColorFormat|.
+
+    Fixes scanny/python-pptx#1111 and #1074 — the prior `Font.color` getter called
+    `self.fill.solid()` unconditionally on every read.
+    """
+
+    def __init__(self, font: "Font"):
+        self._font = font
+
+    # ---internal helpers ---------------------------------------------------
+
+    def _real_or_none(self) -> "ColorFormat | None":
+        """Return the real ColorFormat over `<a:solidFill>` if present, else |None|.
+
+        Read path. Does NOT mutate the underlying XML.
+        """
+        if self._font.fill.type == MSO_FILL.SOLID:
+            return self._font.fill.fore_color
+        return None
+
+    def _real_mutating(self) -> "ColorFormat":
+        """Materialize `<a:solidFill/>` on the font and return its real ColorFormat.
+
+        Write path. Mutates the XML on first call by inserting `<a:solidFill/>`
+        when not already present.
+        """
+        if self._font.fill.type != MSO_FILL.SOLID:
+            self._font.fill.solid()
+        return self._font.fill.fore_color
+
+    # ---public API mirroring ColorFormat ----------------------------------
+
+    @property
+    def type(self):
+        real = self._real_or_none()
+        return real.type if real is not None else None
+
+    @property
+    def rgb(self):
+        real = self._real_or_none()
+        return real.rgb if real is not None else None
+
+    @rgb.setter
+    def rgb(self, value):
+        self._real_mutating().rgb = value
+
+    @property
+    def theme_color(self):
+        # ---no fill = "inheriting from style", which is None.
+        # ---NOT_THEME_COLOR is reserved for "solidFill present but no
+        # ---schemeClr child" — i.e. the explicit-RGB case. Conflating the
+        # ---two would let a round-trip read/write break inheritance.
+        real = self._real_or_none()
+        return real.theme_color if real is not None else None
+
+    @theme_color.setter
+    def theme_color(self, value):
+        self._real_mutating().theme_color = value
+
+    @property
+    def brightness(self):
+        # ---no fill = inherit; return None. 0.0 is a real settable value
+        # ---meaning "no brightness adjustment", not the inherit signal.
+        real = self._real_or_none()
+        return real.brightness if real is not None else None
+
+    @brightness.setter
+    def brightness(self, value):
+        self._real_mutating().brightness = value
+
+    @property
+    def transparency(self):
+        # ---no fill = inherit; return None. 0.0 is a real settable value
+        # ---meaning "fully opaque", not the inherit signal.
+        real = self._real_or_none()
+        return real.transparency if real is not None else None
+
+    @transparency.setter
+    def transparency(self, value):
+        self._real_mutating().transparency = value
 
 
 class _Hyperlink(Subshape):
