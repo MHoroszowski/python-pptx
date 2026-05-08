@@ -85,11 +85,28 @@ class _BaseShapes(ParentedElementProxy):
         self._spTree = spTree
         self._cached_max_shape_id = None
 
-    def __getitem__(self, idx: int) -> BaseShape:
-        """Return shape at `idx` in sequence, e.g. `shapes[2]`."""
+    def __getitem__(self, key: int | str) -> BaseShape:
+        """Return shape at `key`. Mapping-like dispatch by key type.
+
+        - Integer ``key`` returns the shape at that index in document
+          order, e.g. ``shapes[2]``. Raises |IndexError| if out of range.
+        - String ``key`` returns the shape whose ``.name`` equals ``key``
+          (the same lookup as :meth:`by_name`), e.g. ``shapes["Title 1"]``.
+          Raises |KeyError| with a clear message on miss.
+
+        ``bool`` keys are rejected (|TypeError|) — they're a subclass of
+        ``int`` so would otherwise silently resolve to index 0/1, which
+        is almost certainly an unintended call.
+
+        Closes scanny/python-pptx#800.
+        """
+        if isinstance(key, bool):
+            raise TypeError("shape key must be int or str, got bool")
+        if isinstance(key, str):
+            return self.by_name(key)
         shape_elms = list(self._iter_member_elms())
         try:
-            shape_elm = shape_elms[idx]
+            shape_elm = shape_elms[key]
         except IndexError:
             raise IndexError("shape index out of range")
         return self._shape_factory(shape_elm)
@@ -124,6 +141,67 @@ class _BaseShapes(ParentedElementProxy):
             if shape.name == name:
                 return shape
         raise KeyError("no shape named %r in this collection" % name)
+
+    def __contains__(self, key: object) -> bool:
+        """Mapping-like membership: `"Title 1" in shapes` checks names.
+
+        - String key: True when any shape in this collection has a matching
+          ``.name`` (case-sensitive).
+        - Integer key: True when ``0 <= key < len(self)`` — sequence-style
+          index range check, matching `__getitem__(int)` semantics.
+
+        ``bool`` and other key types return False (no implicit coercion;
+        bools rejected for the same reason `__getitem__` rejects them —
+        ``True``/``False`` as an index is almost always a bug).
+        """
+        if isinstance(key, bool):
+            return False
+        if isinstance(key, str):
+            return any(shape.name == key for shape in self)
+        if isinstance(key, int):
+            return 0 <= key < len(self)
+        return False
+
+    def keys(self) -> list[str]:
+        """List of every shape's ``.name`` in document order.
+
+        Mapping-like helper. Names may not be unique (PowerPoint doesn't
+        enforce); duplicates appear in iteration order.
+        """
+        return [shape.name for shape in self]
+
+    def iter_leaf_shapes(self) -> Iterator[BaseShape]:
+        """Recursively yield every non-group shape in this collection.
+
+        Descends into `GroupShape` children; the group containers themselves
+        are NOT yielded — only the leaf shapes (autoshapes, pictures,
+        connectors, text frames, tables, charts, placeholders, etc.) inside
+        them. A consumer wanting the group containers should use the
+        regular `for shape in shapes` iteration.
+
+        Closes scanny/python-pptx#435.
+        """
+        # ---deferred import to avoid circular dependency---
+        from pptx.shapes.group import GroupShape
+
+        for shape in self:
+            if isinstance(shape, GroupShape):
+                yield from shape.shapes.iter_leaf_shapes()
+            else:
+                yield shape
+
+    def in_selection_pane_order(self) -> tuple[BaseShape, ...]:
+        """Return shapes in PowerPoint's Selection Pane order.
+
+        The Selection Pane lists shapes from top-most (most recently drawn,
+        rendered on top) to bottom-most. Top-most in PowerPoint is the
+        last child in XML document order, so this is the reverse of
+        ``tuple(self)``. Read-only snapshot — does not auto-update if
+        the collection changes after the call.
+
+        Closes scanny/python-pptx#532.
+        """
+        return tuple(reversed(list(self)))
 
     def clone_placeholder(self, placeholder: LayoutPlaceholder) -> None:
         """Add a new placeholder shape based on `placeholder`."""
@@ -859,22 +937,56 @@ class NotesSlidePlaceholders(MasterPlaceholders):
 class SlidePlaceholders(ParentedElementProxy):
     """Collection of placeholder shapes on a slide.
 
-    Supports iteration, :func:`len`, and dictionary-style lookup on the `idx` value of the
-    placeholders it contains.
+    Supports iteration, :func:`len`, and dictionary-style lookup by both the
+    `idx` value (int) and the placeholder ``.name`` (str).
     """
 
     _element: CT_GroupShape
 
-    def __getitem__(self, idx: int):
-        """Access placeholder shape having `idx`.
+    def __getitem__(self, key: int | str):
+        """Access placeholder shape by `idx` value (int) or `.name` (str).
 
-        Note that while this looks like list access, idx is actually a dictionary key and will
-        raise |KeyError| if no placeholder with that idx value is in the collection.
+        Note that while this looks like list access, integer ``key`` is a
+        dictionary key against the placeholder's ``ph_idx`` (NOT a sequence
+        index) and will raise |KeyError| if no placeholder with that idx
+        is in the collection. String ``key`` looks up by ``.name`` and
+        raises |KeyError| on miss. ``bool`` keys are rejected (|TypeError|)
+        — they're a subclass of ``int`` so would otherwise silently resolve
+        to a `ph_idx == 0/1` lookup, almost certainly unintended.
+
+        Closes scanny/python-pptx#800.
         """
+        if isinstance(key, bool):
+            raise TypeError("placeholder key must be int or str, got bool")
+        if isinstance(key, str):
+            for ph in self:
+                if ph.name == key:
+                    return ph
+            raise KeyError("no placeholder named %r in this collection" % key)
         for e in self._element.iter_ph_elms():
-            if e.ph_idx == idx:
+            if e.ph_idx == key:
                 return SlideShapeFactory(e, self)
-        raise KeyError("no placeholder on this slide with idx == %d" % idx)
+        raise KeyError("no placeholder on this slide with idx == %d" % key)
+
+    def __contains__(self, key: object) -> bool:
+        """Mapping-like membership: `"Title 1" in placeholders` checks names.
+
+        - String key: True when any placeholder's ``.name`` matches.
+        - Integer key: True when a placeholder with that ``ph_idx`` exists.
+        - ``bool`` and other key types return False (bools rejected for the
+          same reason `__getitem__` rejects them).
+        """
+        if isinstance(key, bool):
+            return False
+        if isinstance(key, str):
+            return any(ph.name == key for ph in self)
+        if isinstance(key, int):
+            return any(e.ph_idx == key for e in self._element.iter_ph_elms())
+        return False
+
+    def keys(self) -> list[str]:
+        """List of every placeholder's ``.name`` in iteration order."""
+        return [ph.name for ph in self]
 
     def __iter__(self):
         """Generate placeholder shapes in `idx` order."""
