@@ -4,10 +4,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
+from lxml.etree import _Element  # pyright: ignore[reportPrivateUsage]
+
 from pptx.action import ActionSetting
 from pptx.dml.effect import ShadowFormat
 from pptx.shared import ElementProxy
 from pptx.util import lazyproperty
+
+# ---bound to the lxml base method so `find_by_xpath(..., namespaces=ns)` can
+# ---honor the caller's prefix map without going through the project's
+# ---`BaseOxmlElement.xpath` override (which auto-applies the project nsmap
+# ---and rejects `namespaces=` kwarg).
+_LXML_XPATH = _Element.xpath
 
 if TYPE_CHECKING:
     from pptx.enum.shapes import MSO_SHAPE_TYPE, PP_PLACEHOLDER
@@ -64,6 +72,27 @@ class BaseShape(object):
         Make sure you know what you're doing if you use this to change the underlying XML.
         """
         return self._element
+
+    def find_by_xpath(self, xpath: str, namespaces: "dict[str, str] | None" = None) -> list:
+        """Power-user XPath escape hatch over this shape's element subtree.
+
+        Returns whatever ``lxml.etree._Element.xpath`` returns — typically a
+        list of matching elements, or an empty list when the expression
+        matches nothing. When ``namespaces`` is |None| (default), the
+        project's standard namespace map is used so common prefixes
+        (``a:``, ``p:``, ``r:``, ``xsi:``, ``adec:``, ``p14:``, etc.) work
+        without explicit declaration. Pass a custom dict to override.
+
+        Example::
+
+            for t_elm in shape.find_by_xpath(".//a:t"):
+                print(t_elm.text)
+        """
+        if namespaces is None:
+            # ---project's BaseOxmlElement.xpath auto-applies the standard nsmap---
+            return self._element.xpath(xpath)
+        # ---custom nsmap: bypass the project wrapper (see _LXML_XPATH note above)---
+        return _LXML_XPATH(self._element, xpath, namespaces=namespaces)
 
     @property
     def has_chart(self) -> bool:
