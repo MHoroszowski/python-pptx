@@ -136,6 +136,26 @@ class Presentation(PartElementProxy):
         self.part.rename_slide_parts([cast("CT_SlideId", sldId).rId for sldId in sldIdLst])
         return Slides(sldIdLst, self)
 
+    @lazyproperty
+    def sections(self):
+        """|_Sections| collection of |Section| objects in this presentation.
+
+        The collection reads from the `p14:sectionLst` extension under
+        ``p:presentation/p:extLst`` and supports ``len()``, iteration,
+        indexed access, ``index``, ``add_section(name, after=None)``, and
+        ``remove(section)``. Section membership references slides by the
+        stable ``p:sldId/@id`` integer, so reordering or indexed insert
+        on the slide collection does not perturb section assignment.
+
+        For a presentation that does not yet declare any sections, the
+        collection reports ``len() == 0`` without forcing the extension
+        elements into existence; the wrapping XML is created on the first
+        ``add_section`` call.
+        """
+        from pptx.sections import _Sections
+
+        return _Sections(self)
+
     def append_from(
         self,
         other_pres: Presentation,

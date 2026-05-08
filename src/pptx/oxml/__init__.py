@@ -319,6 +319,12 @@ register_element_cls("a:prstDash", CT_PresetLineDashProperties)
 
 from pptx.oxml.presentation import (  # noqa: E402
     CT_Presentation,
+    CT_PresentationExtension,
+    CT_PresentationExtensionList,
+    CT_Section,
+    CT_SectionList,
+    CT_SectionSlideId,
+    CT_SectionSlideIdList,
     CT_SlideId,
     CT_SlideIdList,
     CT_SlideMasterIdList,
@@ -332,6 +338,12 @@ register_element_cls("p:sldIdLst", CT_SlideIdList)
 register_element_cls("p:sldMasterId", CT_SlideMasterIdListEntry)
 register_element_cls("p:sldMasterIdLst", CT_SlideMasterIdList)
 register_element_cls("p:sldSz", CT_SlideSize)
+register_element_cls("p:extLst", CT_PresentationExtensionList)
+register_element_cls("p:ext", CT_PresentationExtension)
+register_element_cls("p14:sectionLst", CT_SectionList)
+register_element_cls("p14:section", CT_Section)
+register_element_cls("p14:sldIdLst", CT_SectionSlideIdList)
+register_element_cls("p14:sldId", CT_SectionSlideId)
 
 
 from pptx.oxml.shapes.autoshape import (  # noqa: E402
