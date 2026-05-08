@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import IO, TYPE_CHECKING, Iterable, cast
 
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
@@ -66,11 +67,15 @@ class Presentation(PartElementProxy):
         """
         return self.part.notes_master
 
-    def save(self, file: str | IO[bytes]):
+    def save(self, file: str | os.PathLike[str] | IO[bytes]):
         """Writes this presentation to `file`.
 
-        `file` can be either a file-path or a file-like object open for writing bytes.
+        `file` can be a file-path (|str| or any |os.PathLike| object such as
+        |pathlib.Path|) or a file-like object open for writing bytes.
         """
+        # ---accept os.PathLike (pathlib.Path etc.) by coercing to str---
+        if hasattr(file, "__fspath__"):
+            file = os.fspath(file)
         self.part.save(file)
 
     @property

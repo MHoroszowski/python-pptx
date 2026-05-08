@@ -595,10 +595,21 @@ class _Background(ElementProxy):
     Note that the presence of this object does not by itself imply an
     explicitly-defined background; a slide with an inherited background still
     has a |_Background| object.
+
+    Closes upstream issue #1126: prior to this fix, ``slide.background.element``
+    returned the parent ``<p:cSld>`` element instead of the actual ``<p:bg>``
+    background element. Power users introspecting the XML now get the right
+    node. The ``<p:bg>`` element is materialized on construction (matching
+    the legacy destructive behavior of accessing ``.fill``) — and since
+    ``slide.background`` is a |lazyproperty| upstream, this only fires on
+    first access of the slide's background, not on slide load.
     """
 
     def __init__(self, cSld: CT_CommonSlideData):
-        super(_Background, self).__init__(cSld)
+        # ---resolve to the <p:bg> element (creating if needed) so that
+        #    `_element` and `.element` point at the right node per issue #1126
+        bg = cSld.get_or_add_bg()
+        super(_Background, self).__init__(bg)
         self._cSld = cSld
 
     @lazyproperty

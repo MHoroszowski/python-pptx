@@ -153,11 +153,15 @@ class Image(object):
         return cls(blob, filename)
 
     @classmethod
-    def from_file(cls, image_file: str | IO[bytes]) -> Image:
+    def from_file(cls, image_file: str | os.PathLike[str] | IO[bytes]) -> Image:
         """Return a new |Image| object loaded from `image_file`.
 
-        `image_file` can be either a path (str) or a file-like object.
+        `image_file` can be a path (|str| or any |os.PathLike| object such as
+        |pathlib.Path|) or a file-like object.
         """
+        # ---accept os.PathLike (pathlib.Path etc.) by coercing to str---
+        if hasattr(image_file, "__fspath__"):
+            image_file = os.fspath(image_file)
         if isinstance(image_file, str):
             # treat image_file as a path
             with open(image_file, "rb") as f:
