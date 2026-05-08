@@ -73,10 +73,10 @@ class Presentation(PartElementProxy):
         `file` can be a file-path (|str| or any |os.PathLike| object such as
         |pathlib.Path|) or a file-like object open for writing bytes.
         """
-        # ---accept os.PathLike (pathlib.Path etc.) by coercing to str---
-        if hasattr(file, "__fspath__"):
-            file = os.fspath(file)
-        self.part.save(file)
+        # ---accept os.PathLike (pathlib.Path etc.) by coercing to str at the
+        # ---boundary; collapse the union to (str | IO[bytes]) for downstream---
+        pkg_file: str | IO[bytes] = os.fspath(file) if isinstance(file, os.PathLike) else file
+        self.part.save(pkg_file)
 
     @property
     def slide_height(self) -> Length | None:
@@ -157,7 +157,7 @@ class Presentation(PartElementProxy):
         elements into existence; the wrapping XML is created on the first
         ``add_section`` call.
         """
-        from pptx.sections import _Sections
+        from pptx.sections import _Sections  # pyright: ignore[reportPrivateUsage]
 
         return _Sections(self)
 
@@ -202,7 +202,7 @@ class Presentation(PartElementProxy):
         Raises |IndexError| if any value in `slide_indexes` is out of
         range for ``other_pres.slides``.
         """
-        from pptx.parts.slide import _PortContext, duplicate_notes_slide_for  # noqa: F401
+        from pptx.parts.slide import _PortContext  # pyright: ignore[reportPrivateUsage]
 
         if slide_indexes is None:
             source_slides = list(other_pres.slides)

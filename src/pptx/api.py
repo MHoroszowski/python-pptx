@@ -27,18 +27,21 @@ def Presentation(
     |pathlib.Path|) or a file-like object. If *pptx* is missing or ``None``,
     the built-in default presentation "template" is loaded.
     """
+    # ---accept os.PathLike (pathlib.Path, etc.) by coercing to str at the
+    # ---boundary; collapse the union to (str | IO[bytes]) for downstream---
+    pkg_file: str | IO[bytes]
     if pptx is None:
-        pptx = _default_pptx_path()
+        pkg_file = _default_pptx_path()
+    elif isinstance(pptx, os.PathLike):
+        pkg_file = os.fspath(pptx)
+    else:
+        pkg_file = pptx
 
-    # ---accept os.PathLike (pathlib.Path, etc.) by coercing to str at the boundary---
-    if hasattr(pptx, "__fspath__"):
-        pptx = os.fspath(pptx)
-
-    presentation_part = Package.open(pptx).main_document_part
+    presentation_part = Package.open(pkg_file).main_document_part
 
     if not _is_pptx_package(presentation_part):
         tmpl = "file '%s' is not a PowerPoint file, content type is '%s'"
-        raise ValueError(tmpl % (pptx, presentation_part.content_type))
+        raise ValueError(tmpl % (pkg_file, presentation_part.content_type))
 
     return presentation_part.presentation
 
