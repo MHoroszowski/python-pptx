@@ -184,6 +184,23 @@ class BaseShape(object):
         self._element._nvXxPr.cNvPr.decorative = bool(value)  # pyright: ignore[reportPrivateUsage]
 
     @property
+    def is_hidden_from_accessibility(self) -> bool:
+        """Convenience alias for :attr:`is_decorative`.
+
+        Read/write. Decorative shapes (the official OOXML term — `<adec:decorative
+        val="1"/>`) are exactly those that are hidden from accessibility tools
+        such as screen readers. Some accessibility documentation (and a number of
+        third-party authoring tools) use the wording "hidden from accessibility"
+        for the same flag; this property exists so the API reads naturally for
+        either audience.
+        """
+        return self.is_decorative
+
+    @is_hidden_from_accessibility.setter
+    def is_hidden_from_accessibility(self, value: bool):
+        self.is_decorative = bool(value)
+
+    @property
     def part(self) -> BaseSlidePart:
         """The package part containing this shape.
 

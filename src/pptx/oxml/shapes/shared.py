@@ -354,7 +354,7 @@ class CT_NonVisualDrawingProps(BaseOxmlElement):
     del _tag_seq
 
     # -- URI for the Office 2019+ "Mark as decorative" extension --
-    _DECORATIVE_EXT_URI = "{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}"
+    _DECORATIVE_EXT_URI = "{C183D7F6-B498-43B3-948B-1728B52AA6E4}"
 
     @property
     def decorative(self) -> bool:
@@ -394,11 +394,11 @@ class CT_OfficeArtExtensionList(BaseOxmlElement):
     we manipulate the `a:ext` children directly through lxml.
     """
 
-    _DECORATIVE_EXT_URI = "{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}"
+    _DECORATIVE_EXT_URI = "{C183D7F6-B498-43B3-948B-1728B52AA6E4}"
 
     @property
     def is_decorative(self) -> bool:
-        """True if a child `<a:ext uri="{FF2B5EF4...}">` carries `<adec:decorative val="1"/>`."""
+        """True if a child `<a:ext uri="{C183D7F6...}">` carries `<adec:decorative val="1"/>`."""
         ext = self._decorative_ext
         if ext is None:
             return False
