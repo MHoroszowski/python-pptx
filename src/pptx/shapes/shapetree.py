@@ -625,6 +625,74 @@ class SlideShapes(_BaseGroupShapes):
                 return cast(Shape, self._shape_factory(elm))
         return None
 
+    @property
+    def reading_order(self) -> tuple[BaseShape, ...]:
+        """Sequence of shapes in the order screen readers will narrate them.
+
+        Reading order on a slide that does not declare an explicit
+        ``<p:tabLst>`` is the document order of children under
+        ``<p:spTree>`` — i.e. the same order as iteration over
+        :class:`SlideShapes`. Returned as a tuple so callers can compare
+        against, slice, or index without affecting the underlying XML.
+
+        Assigning a reordered sequence reorders the underlying
+        ``<p:spTree>`` children to match. The assigned sequence MUST be
+        a permutation of this slide's existing shapes — same set, same
+        length. Raises |ValueError| otherwise.
+        """
+        return tuple(self)
+
+    @reading_order.setter
+    def reading_order(self, new_order):
+        """Reorder the slide's shape tree to match `new_order` (a permutation)."""
+        new_list = list(new_order)
+        existing = list(self)
+        if len(new_list) != len(existing):
+            raise ValueError(
+                "reading_order must be a permutation of slide.shapes "
+                "(got %d items, expected %d)" % (len(new_list), len(existing))
+            )
+        existing_elements = {s._element for s in existing}
+        new_elements = [s._element for s in new_list]
+        if set(new_elements) != existing_elements:
+            raise ValueError("reading_order must contain exactly the slide's existing shapes")
+        # ---reorder by removing-then-appending in new order. Children before the
+        #    first shape (e.g. nvGrpSpPr, grpSpPr) remain in place because we only
+        #    move the shape elements themselves.
+        for elm in new_elements:
+            self._spTree.remove(elm)
+        for elm in new_elements:
+            self._spTree.append(elm)
+
+    def accessibility_issues(self) -> list[BaseShape]:
+        """Return shapes on this slide that fail basic accessibility lint.
+
+        A shape is flagged when it carries no alt text (neither
+        ``alt_text`` nor ``alt_title`` is set) AND is not marked
+        decorative (``is_decorative`` is False). Returned shapes are
+        ordered by reading order so callers can iterate top-down.
+
+        This is a basic Section 508 / WCAG style check — adding alt text
+        to every flagged shape, or marking it decorative, brings a slide
+        to a baseline level of screen-reader friendliness. It does not
+        cover every accessibility concern (color contrast, font size,
+        complex tab order, etc.) — treat it as a fast first-pass.
+        """
+        issues: list[BaseShape] = []
+        for shape in self:
+            try:
+                if shape.is_decorative:
+                    continue
+                if shape.alt_text or shape.alt_title:
+                    continue
+            except (AttributeError, TypeError):
+                # ---accessibility properties live on _BaseShape; if a non-shape
+                #    sneaks into the iter (shouldn't, but guard) it cannot be
+                #    flagged.
+                continue
+            issues.append(shape)
+        return issues
+
     def _add_graphicFrame_containing_table(
         self, rows: int, cols: int, x: Length, y: Length, cx: Length, cy: Length
     ) -> CT_GraphicalObjectFrame:

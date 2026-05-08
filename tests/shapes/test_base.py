@@ -262,7 +262,7 @@ class DescribeBaseShape(object):
             ' xmlns:adec="http://schemas.microsoft.com/office/drawing/2017/decorative">'
             '<p:nvSpPr><p:cNvPr id="1" name="foo">'
             "<a:extLst>"
-            '<a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">'
+            '<a:ext uri="{C183D7F6-B498-43B3-948B-1728B52AA6E4}">'
             '<adec:decorative val="1"/>'
             "</a:ext>"
             "</a:extLst>"
@@ -280,7 +280,7 @@ class DescribeBaseShape(object):
             ' xmlns:adec="http://schemas.microsoft.com/office/drawing/2017/decorative">'
             '<p:nvSpPr><p:cNvPr id="1" name="foo">'
             "<a:extLst>"
-            '<a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">'
+            '<a:ext uri="{C183D7F6-B498-43B3-948B-1728B52AA6E4}">'
             '<adec:decorative val="0"/>'
             "</a:ext>"
             "</a:extLst>"
@@ -301,7 +301,7 @@ class DescribeBaseShape(object):
         assert shape.is_decorative is True
         # ---round-trip read of underlying XML confirms structure---
         cNvPr = shape._element.xpath("./p:nvSpPr/p:cNvPr")[0]
-        ext = cNvPr.xpath("./a:extLst/a:ext[@uri='{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}']")
+        ext = cNvPr.xpath("./a:extLst/a:ext[@uri='{C183D7F6-B498-43B3-948B-1728B52AA6E4}']")
         assert len(ext) == 1
         decoratives = ext[0].xpath("./adec:decorative")
         assert len(decoratives) == 1
@@ -316,7 +316,7 @@ class DescribeBaseShape(object):
             ' xmlns:adec="http://schemas.microsoft.com/office/drawing/2017/decorative">'
             '<p:nvSpPr><p:cNvPr id="1" name="foo">'
             "<a:extLst>"
-            '<a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">'
+            '<a:ext uri="{C183D7F6-B498-43B3-948B-1728B52AA6E4}">'
             '<adec:decorative val="1"/>'
             "</a:ext>"
             "</a:extLst>"
@@ -326,7 +326,7 @@ class DescribeBaseShape(object):
         shape.is_decorative = False
         assert shape.is_decorative is False
         cNvPr = shape._element.xpath("./p:nvSpPr/p:cNvPr")[0]
-        ext = cNvPr.xpath("./a:extLst/a:ext[@uri='{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}']")
+        ext = cNvPr.xpath("./a:extLst/a:ext[@uri='{C183D7F6-B498-43B3-948B-1728B52AA6E4}']")
         assert ext == []
 
     def it_setting_is_decorative_True_when_already_True_is_idempotent(self):
@@ -338,7 +338,7 @@ class DescribeBaseShape(object):
             ' xmlns:adec="http://schemas.microsoft.com/office/drawing/2017/decorative">'
             '<p:nvSpPr><p:cNvPr id="1" name="foo">'
             "<a:extLst>"
-            '<a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">'
+            '<a:ext uri="{C183D7F6-B498-43B3-948B-1728B52AA6E4}">'
             '<adec:decorative val="1"/>'
             "</a:ext>"
             "</a:extLst>"
@@ -349,7 +349,7 @@ class DescribeBaseShape(object):
         # ---still True, only one ext element present---
         assert shape.is_decorative is True
         cNvPr = shape._element.xpath("./p:nvSpPr/p:cNvPr")[0]
-        ext = cNvPr.xpath("./a:extLst/a:ext[@uri='{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}']")
+        ext = cNvPr.xpath("./a:extLst/a:ext[@uri='{C183D7F6-B498-43B3-948B-1728B52AA6E4}']")
         assert len(ext) == 1
 
     def it_setting_is_decorative_False_when_already_False_is_idempotent(self):
