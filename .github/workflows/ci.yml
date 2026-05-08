@@ -36,13 +36,37 @@ jobs:
       - name: ruff format check
         run: ruff format --check src tests
 
+  typecheck:
+    name: Typecheck (pyright strict — public API)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package and pyright
+        run: |
+          python -m pip install --upgrade pip pyright
+          python -m pip install -e .
+      # ---public-API surface: pptx/__init__.py is the literal entrypoint
+      # ---resolved by `from pptx import Presentation`, plus the modules
+      # ---it pulls in (api, presentation, util, exc, types).
+      # ---Strict-mode pyright on the broader codebase still surfaces several
+      # ---thousand findings (reportUnknownMemberType-heavy in chart and
+      # ---oxml.simpletypes); those are tracked as future work, not this gate.
+      - name: pyright (public-API entry points)
+        run: |
+          pyright src/pptx/__init__.py src/pptx/api.py src/pptx/presentation.py \
+                  src/pptx/util.py src/pptx/exc.py src/pptx/types.py
+
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
