@@ -45,6 +45,29 @@ class CT_Table(BaseOxmlElement):
         """Return a newly created `a:tr` child element having its `h` attribute set to `height`."""
         return self._add_tr(h=height)
 
+    def insert_tr_at(self, idx: int, height: Length) -> CT_TableRow:
+        """Insert a new `a:tr` at zero-based position `idx` with no cells.
+
+        Caller is responsible for populating the new row with `add_tc()` calls
+        to match the table's column count. `idx` may equal `len(self.tr_lst)`
+        to append. Raises `IndexError` if `idx` is out of range.
+        """
+        if idx < 0 or idx > len(self.tr_lst):
+            raise IndexError("row index out of range")
+        new_tr = self.add_tr(height)
+        if idx < len(self.tr_lst) - 1:
+            self.tr_lst[idx].addprevious(new_tr)
+        return new_tr
+
+    def remove_tr_at(self, idx: int) -> None:
+        """Remove the `a:tr` at zero-based position `idx`.
+
+        Raises `IndexError` if `idx` is out of range.
+        """
+        if idx < 0 or idx >= len(self.tr_lst):
+            raise IndexError("row index out of range")
+        self.remove(self.tr_lst[idx])
+
     @property
     def bandCol(self) -> bool:
         return self._get_boolean_property("bandCol")
@@ -135,6 +158,21 @@ class CT_Table(BaseOxmlElement):
     def tc(self, row_idx: int, col_idx: int) -> CT_TableCell:
         """Return `a:tc` element at `row_idx`, `col_idx`."""
         return self.tr_lst[row_idx].tc_lst[col_idx]
+
+    def column_has_cross_column_merge(self, col_idx: int) -> bool:
+        """True if column `col_idx` contains a cell in a multi-column merge.
+
+        Specifically: any tc at this column with `gridSpan > 1` (origin of
+        horizontal merge), or any tc with `hMerge=True` (target). Used to
+        decide whether `Table.columns.remove(col_idx)` is safe.
+        """
+        for tr in self.tr_lst:
+            if col_idx >= len(tr.tc_lst):
+                continue
+            tc = tr.tc_lst[col_idx]
+            if tc.gridSpan > 1 or tc.hMerge:
+                return True
+        return False
 
     def _get_boolean_property(self, propname: str) -> bool:
         """Generalized getter for the boolean properties on the `a:tblPr` child element.
@@ -439,6 +477,28 @@ class CT_TableGrid(BaseOxmlElement):
         """A newly appended `a:gridCol` child element having its `w` attribute set to `width`."""
         return self._add_gridCol(w=width)
 
+    def insert_gridCol_at(self, idx: int, width: Length) -> CT_TableCol:
+        """Insert a new `a:gridCol` at zero-based position `idx`.
+
+        `idx` may equal `len(self.gridCol_lst)` to append. Raises
+        `IndexError` if `idx` is out of range.
+        """
+        if idx < 0 or idx > len(self.gridCol_lst):
+            raise IndexError("column index out of range")
+        new_gridCol = self.add_gridCol(width)
+        if idx < len(self.gridCol_lst) - 1:
+            self.gridCol_lst[idx].addprevious(new_gridCol)
+        return new_gridCol
+
+    def remove_gridCol_at(self, idx: int) -> None:
+        """Remove the `a:gridCol` at zero-based position `idx`.
+
+        Raises `IndexError` if `idx` is out of range.
+        """
+        if idx < 0 or idx >= len(self.gridCol_lst):
+            raise IndexError("column index out of range")
+        self.remove(self.gridCol_lst[idx])
+
 
 class CT_TableProperties(BaseOxmlElement):
     """`a:tblPr` custom element class."""
@@ -463,6 +523,40 @@ class CT_TableRow(BaseOxmlElement):
     def add_tc(self) -> CT_TableCell:
         """A newly added minimal valid `a:tc` child element."""
         return self._add_tc()
+
+    def insert_tc_at(self, idx: int) -> CT_TableCell:
+        """Insert a new minimal valid `a:tc` child element at zero-based position `idx`.
+
+        `idx` may equal `len(self.tc_lst)` to append. Raises `IndexError` if
+        `idx` is out of range.
+        """
+        if idx < 0 or idx > len(self.tc_lst):
+            raise IndexError("cell index out of range")
+        new_tc = self.add_tc()
+        if idx < len(self.tc_lst) - 1:
+            self.tc_lst[idx].addprevious(new_tc)
+        return new_tc
+
+    def remove_tc_at(self, idx: int) -> None:
+        """Remove the `a:tc` at zero-based position `idx`.
+
+        Raises `IndexError` if `idx` is out of range.
+        """
+        if idx < 0 or idx >= len(self.tc_lst):
+            raise IndexError("cell index out of range")
+        self.remove(self.tc_lst[idx])
+
+    @property
+    def has_cross_row_merge(self) -> bool:
+        """True if this row contains a cell that participates in a multi-row merge.
+
+        Specifically: any `<a:tc>` with `rowSpan > 1` (origin of vertical
+        merge), or any `<a:tc>` with `vMerge=True` (target of vertical
+        merge anchored elsewhere). Used to decide whether
+        `Table.rows.remove(idx)` is safe — removing a row that crosses a
+        vertical merge would orphan the rest of the merge.
+        """
+        return any(tc.rowSpan > 1 or tc.vMerge for tc in self.tc_lst)
 
     @property
     def row_idx(self) -> int:

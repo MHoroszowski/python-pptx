@@ -535,9 +535,73 @@ class _ColumnCollection(Subshape):
             raise IndexError(msg)
         return _Column(self._tbl.tblGrid.gridCol_lst[idx], self)
 
+    def __iter__(self) -> Iterator[_Column]:
+        """Generate each |_Column| in left-to-right order."""
+        return (_Column(gc, self) for gc in self._tbl.tblGrid.gridCol_lst)
+
     def __len__(self):
         """Supports len() function (e.g. 'len(columns) == 1')."""
         return len(self._tbl.tblGrid.gridCol_lst)
+
+    def add(self, at: int | None = None, width: Length | None = None) -> _Column:
+        """Insert a new column and return its |_Column| proxy.
+
+        When `at` is |None| (default), the new column is appended to the
+        right edge. When `at` is an integer, the new column is inserted
+        at that zero-based position; `at` may equal ``len(self)`` to
+        append explicitly. Negative indices are not supported.
+
+        When `width` is |None| (default), the new column inherits the
+        width of the leftmost column (or 1 inch for an empty table); pass
+        an explicit |Length| (e.g. ``Inches(1.5)``) to override.
+
+        An empty `<a:tc>` is added at the corresponding position in every
+        existing row, preserving row-cell alignment. Cell content in
+        existing columns is left untouched.
+
+        Raises |IndexError| if `at` is out of range and |ValueError| if
+        the insertion column would split a cross-column merge.
+        """
+        if at is not None and (at < 0 or at > len(self)):
+            raise IndexError("column index out of range")
+        if width is None:
+            existing = self._tbl.tblGrid.gridCol_lst
+            width = Emu(existing[0].w) if existing else Emu(914400)  # ---1 inch
+        idx = at if at is not None else len(self)
+        # ---inserting at idx must not split an existing horizontal merge that
+        #    spans across the boundary at column `idx`---
+        if 0 < idx < len(self):
+            for tr in self._tbl.tr_lst:
+                if idx < len(tr.tc_lst) and tr.tc_lst[idx].hMerge:
+                    raise ValueError(
+                        "cannot insert column at index %d — would split a "
+                        "horizontal merge; split the affected merge first" % idx
+                    )
+        new_gridCol = self._tbl.tblGrid.insert_gridCol_at(idx, width)
+        for tr in self._tbl.tr_lst:
+            tr.insert_tc_at(idx)
+        self._parent.notify_width_changed()
+        return _Column(new_gridCol, self)
+
+    def remove(self, index: int) -> None:
+        """Remove the column at `index`.
+
+        Raises |IndexError| if `index` is out of range and |ValueError|
+        if the column participates in a multi-column merge (the column
+        contains a cell with `gridSpan > 1` or `hMerge=True`). Split the
+        affected merge before calling.
+        """
+        if index < 0 or index >= len(self):
+            raise IndexError("column index out of range")
+        if self._tbl.column_has_cross_column_merge(index):
+            raise ValueError(
+                "cannot remove column %d containing a cross-column merge; "
+                "split affected merges before removing the column" % index
+            )
+        self._tbl.tblGrid.remove_gridCol_at(index)
+        for tr in self._tbl.tr_lst:
+            tr.remove_tc_at(index)
+        self._parent.notify_width_changed()
 
     def notify_width_changed(self):
         """Called by a column when its width changes. Pass along to parent."""
@@ -559,9 +623,71 @@ class _RowCollection(Subshape):
             raise IndexError(msg)
         return _Row(self._tbl.tr_lst[idx], self)
 
+    def __iter__(self) -> Iterator[_Row]:
+        """Generate each |_Row| in top-to-bottom order."""
+        return (_Row(tr, self) for tr in self._tbl.tr_lst)
+
     def __len__(self):
         """Supports len() function (e.g. 'len(rows) == 1')."""
         return len(self._tbl.tr_lst)
+
+    def add(self, at: int | None = None, height: Length | None = None) -> _Row:
+        """Insert a new row and return its |_Row| proxy.
+
+        When `at` is |None| (default), the new row is appended at the
+        bottom. When `at` is an integer, the new row is inserted at that
+        zero-based position; `at` may equal ``len(self)`` to append
+        explicitly. Negative indices are not supported.
+
+        When `height` is |None| (default), the new row inherits the
+        height of the first row (or 0.4 inch for an empty table); pass an
+        explicit |Length| (e.g. ``Inches(0.5)``) to override.
+
+        The new row is populated with empty `<a:tc>` cells matching the
+        table's current column count. Existing cell content is untouched.
+
+        Raises |IndexError| if `at` is out of range and |ValueError| if
+        the insertion row would split a cross-row merge.
+        """
+        if at is not None and (at < 0 or at > len(self)):
+            raise IndexError("row index out of range")
+        if height is None:
+            existing = self._tbl.tr_lst
+            height = Emu(existing[0].h) if existing else Emu(370840)  # ---~0.4 inch
+        idx = at if at is not None else len(self)
+        # ---inserting at idx must not split an existing vertical merge that
+        #    spans across the boundary at row `idx`---
+        if 0 < idx < len(self):
+            for tc in self._tbl.tr_lst[idx].tc_lst:
+                if tc.vMerge:
+                    raise ValueError(
+                        "cannot insert row at index %d — would split a "
+                        "vertical merge; split the affected merge first" % idx
+                    )
+        new_tr = self._tbl.insert_tr_at(idx, height) if at is not None else self._tbl.add_tr(height)
+        col_count = len(self._tbl.tblGrid.gridCol_lst)
+        for _ in range(col_count):
+            new_tr.add_tc()
+        self._parent.notify_height_changed()
+        return _Row(new_tr, self)
+
+    def remove(self, index: int) -> None:
+        """Remove the row at `index`.
+
+        Raises |IndexError| if `index` is out of range and |ValueError|
+        if the row participates in a multi-row merge (the row contains a
+        cell with `rowSpan > 1` or `vMerge=True`). Split the affected
+        merge before calling.
+        """
+        if index < 0 or index >= len(self):
+            raise IndexError("row index out of range")
+        if self._tbl.tr_lst[index].has_cross_row_merge:
+            raise ValueError(
+                "cannot remove row %d containing a cross-row merge; split "
+                "affected merges before removing the row" % index
+            )
+        self._tbl.remove_tr_at(index)
+        self._parent.notify_height_changed()
 
     def notify_height_changed(self):
         """Called by a row when its height changes. Pass along to parent."""
