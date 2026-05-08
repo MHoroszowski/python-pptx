@@ -25,30 +25,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
-      - name: Install ruff
-        run: python -m pip install --upgrade ruff
+          enable-cache: true
+      # ---uv tool run auto-installs on first invocation; no separate install step needed---
       - name: ruff check
-        run: ruff check src tests
+        run: uv tool run ruff check src tests
       - name: ruff format check
-        run: ruff format --check src tests
+        run: uv tool run ruff format --check src tests
 
   typecheck:
     name: Typecheck (pyright strict — public API)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
-      - name: Install package and pyright
-        run: |
-          python -m pip install --upgrade pip pyright
-          python -m pip install -e .
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Sync dev dependencies
+        run: uv sync --extra dev
       # ---public-API surface: pptx/__init__.py is the literal entrypoint
       # ---resolved by `from pptx import Presentation`, plus the modules
       # ---it pulls in (api, presentation, util, exc, types).
@@ -57,8 +56,8 @@ jobs:
       # ---oxml.simpletypes); those are tracked as future work, not this gate.
       - name: pyright (public-API entry points)
         run: |
-          pyright src/pptx/__init__.py src/pptx/api.py src/pptx/presentation.py \
-                  src/pptx/util.py src/pptx/exc.py src/pptx/types.py
+          uv run pyright src/pptx/__init__.py src/pptx/api.py src/pptx/presentation.py \
+                         src/pptx/util.py src/pptx/exc.py src/pptx/types.py
 
   test:
     name: Test (Python ${{ matrix.python-version }})
@@ -69,21 +68,20 @@ jobs:
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+      - name: Sync test dependencies
+        run: uv sync --extra test --python ${{ matrix.python-version }}
       - name: Display Python version
-        run: python -c "import sys; print(sys.version)"
-      - name: Install package and test deps
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e .
-          python -m pip install -r requirements-test.txt
+        run: uv run python -c "import sys; print(sys.version)"
       - name: Unit + integration tests (pytest)
-        run: pytest --cov=pptx --cov-report=term-missing tests
+        run: uv run pytest --cov=pptx --cov-report=term-missing tests
       - name: Acceptance tests (behave)
-        run: behave --stop
+        run: uv run behave --stop
 
   build-check:
     name: Build sdist and wheel (smoke)
@@ -91,16 +89,14 @@ jobs:
     needs: test
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
-      - name: Install build tooling
-        run: python -m pip install --upgrade build twine
+          enable-cache: true
       - name: Build distributions
-        run: python -m build
+        run: uv build
       - name: Verify metadata renders
-        run: python -m twine check dist/*
+        run: uv tool run --from twine twine check dist/*
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:

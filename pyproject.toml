@@ -35,6 +35,30 @@ license = { text = "MIT" }
 readme = "README.rst"
 requires-python = ">=3.9"
 
+# -- Optional dependency groups, installable as `pip install python-pptx-extended[test]`
+# -- or via uv as `uv sync --extra test`. The legacy requirements*.txt files were
+# -- removed in the uv migration (see HISTORY.rst); the same package sets live here.
+[project.optional-dependencies]
+test = [
+    "behave>=1.2.5",
+    "pyparsing>=2.0.1,<3",
+    "pytest>=2.5",
+    "pytest-cov",
+    "pytest-xdist",
+]
+dev = [
+    "build",
+    "pyright",
+    "ruff",
+    "twine",
+]
+docs = [
+    "Sphinx==1.8.6",
+    "Jinja2==2.11.3",
+    "MarkupSafe==0.23",
+    "alabaster<0.7.14",
+]
+
 [project.urls]
 Changelog = "https://github.com/MHoroszowski/python-pptx/blob/master/HISTORY.rst"
 Documentation = "https://python-pptx.readthedocs.io/en/latest/"
