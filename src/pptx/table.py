@@ -166,6 +166,33 @@ class Table(object):
     def vert_banding(self, value: bool):
         self._tbl.bandCol = value
 
+    @property
+    def row_count(self) -> int:
+        """Number of rows in this table.
+
+        Read-only. Equivalent to ``len(table.rows)`` but doesn't instantiate
+        the |_RowCollection|.
+        """
+        return len(self._tbl.tr_lst)
+
+    @property
+    def column_count(self) -> int:
+        """Number of columns in this table.
+
+        Read-only. Equivalent to ``len(table.columns)`` but doesn't
+        instantiate the |_ColumnCollection|.
+        """
+        return len(self._tbl.tblGrid.gridCol_lst)
+
+    @property
+    def dimensions(self) -> tuple[int, int]:
+        """``(row_count, column_count)`` pair describing this table's shape.
+
+        Read-only. Symmetrical with ``TcRange.dimensions``; rows-first order
+        matches the dominant 2D-array convention.
+        """
+        return (self.row_count, self.column_count)
+
     def merge_cells(self, row_range, col_range) -> "_Cell":
         """Merge a rectangular block of cells into a single merged cell.
 
