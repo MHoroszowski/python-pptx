@@ -108,6 +108,23 @@ class _BaseShapes(ParentedElementProxy):
         shape_elms = list(self._iter_member_elms())
         return len(shape_elms)
 
+    def by_name(self, name: str) -> BaseShape:
+        """Return the first shape in this collection whose `.name` equals `name`.
+
+        Lookup is case-sensitive, matching PowerPoint's own behavior. When
+        multiple shapes share the same name (uncommon but possible —
+        PowerPoint does not enforce uniqueness), the first match in
+        document order is returned. Raises |KeyError| with a clear message
+        if no match is found.
+
+        Closes scanny/python-pptx#798, scanny/python-pptx#309, and
+        scanny/python-pptx#532.
+        """
+        for shape in self:
+            if shape.name == name:
+                return shape
+        raise KeyError("no shape named %r in this collection" % name)
+
     def clone_placeholder(self, placeholder: LayoutPlaceholder) -> None:
         """Add a new placeholder shape based on `placeholder`."""
         sp = placeholder.element

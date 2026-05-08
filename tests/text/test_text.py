@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from pptx.dml.color import ColorFormat
 from pptx.dml.fill import FillFormat
 from pptx.enum.lang import MSO_LANGUAGE_ID
 from pptx.enum.text import MSO_ANCHOR, MSO_AUTO_SIZE, MSO_UNDERLINE, PP_ALIGN, PP_BULLET_TYPE
@@ -526,7 +525,17 @@ class DescribeFont(object):
         assert font._element.xml == expected_xml
 
     def it_provides_access_to_its_color(self, font):
-        assert isinstance(font.color, ColorFormat)
+        # ---issue #29 Phase 2: Font.color now returns a non-mutating
+        # ---_LazyFontColorFormat proxy instead of a real ColorFormat,
+        # ---so reads on an unstyled run don't insert <a:solidFill>.
+        # ---The proxy mirrors ColorFormat's public surface
+        # ---(rgb/theme_color/type/brightness/transparency).
+        from pptx.text.text import _LazyFontColorFormat
+
+        assert isinstance(font.color, _LazyFontColorFormat)
+        # ---ColorFormat-shaped duck-typing on the proxy:
+        for attr in ("rgb", "theme_color", "type", "brightness", "transparency"):
+            assert hasattr(font.color, attr)
 
     def it_provides_access_to_its_fill(self, font):
         assert isinstance(font.fill, FillFormat)

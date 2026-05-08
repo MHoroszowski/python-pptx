@@ -210,34 +210,44 @@ class CT_CoreProperties(BaseOxmlElement):
         return element
 
     @classmethod
-    def _offset_dt(cls, datetime: dt.datetime, offset_str: str):
-        """Return |datetime| instance offset from `datetime` by offset specified in `offset_str`.
-
-        `offset_str` is a string like `'-07:00'`.
-        """
+    def _tzinfo_from_offset_str(cls, offset_str: str) -> dt.timezone:
+        """Return a :class:`datetime.timezone` parsed from a W3CDTF offset like '-08:00'."""
         match = cls._offset_pattern.match(offset_str)
         if match is None:
             raise ValueError(f"{repr(offset_str)} is not a valid offset string")
         sign, hours_str, minutes_str = match.groups()
-        sign_factor = -1 if sign == "+" else 1
+        sign_factor = 1 if sign == "+" else -1
         hours = int(hours_str) * sign_factor
         minutes = int(minutes_str) * sign_factor
-        td = dt.timedelta(hours=hours, minutes=minutes)
-        return datetime + td
+        return dt.timezone(dt.timedelta(hours=hours, minutes=minutes))
 
     _offset_pattern = re.compile(r"([+-])(\d\d):(\d\d)")
 
     @classmethod
     def _parse_W3CDTF_to_datetime(cls, w3cdtf_str: str) -> dt.datetime:
-        # valid W3CDTF date cases:
-        # yyyy e.g. '2003'
-        # yyyy-mm e.g. '2003-12'
-        # yyyy-mm-dd e.g. '2003-12-31'
-        # UTC timezone e.g. '2003-12-31T10:14:55Z'
-        # numeric timezone e.g. '2003-12-31T10:14:55-08:00'
+        """Parse a W3CDTF string into a :class:`datetime.datetime`.
+
+        Returns a tz-aware datetime when the input string carries timezone
+        information — ``Z`` suffix maps to UTC; numeric offsets like
+        ``-08:00`` map to a fixed-offset :class:`datetime.timezone`. When the
+        input has no timezone marker (year-only, year-month, year-month-day,
+        or a bare timestamp), the returned datetime is naive — callers
+        should not assume any specific timezone for naive inputs.
+
+        Closes scanny/python-pptx#957 — the prior implementation always
+        returned a naive datetime, even for strings that explicitly carried
+        timezone information.
+
+        valid W3CDTF date cases:
+            - yyyy e.g. '2003'
+            - yyyy-mm e.g. '2003-12'
+            - yyyy-mm-dd e.g. '2003-12-31'
+            - UTC timezone e.g. '2003-12-31T10:14:55Z'
+            - numeric timezone e.g. '2003-12-31T10:14:55-08:00'
+        """
         templates = ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d", "%Y-%m", "%Y")
-        # strptime isn't smart enough to parse literal timezone offsets like
-        # '-07:30', so we have to do it ourselves
+        # ---strptime can't parse literal timezone offsets like '-07:30', so
+        # ---we strip the offset and add tzinfo ourselves below.
         parseable_part = w3cdtf_str[:19]
         offset_str = w3cdtf_str[19:]
         timestamp = None
@@ -249,15 +259,31 @@ class CT_CoreProperties(BaseOxmlElement):
         if timestamp is None:
             tmpl = "could not parse W3CDTF datetime string '%s'"
             raise ValueError(tmpl % w3cdtf_str)
+        # ---'Z' means UTC---
+        if offset_str == "Z":
+            return timestamp.replace(tzinfo=dt.timezone.utc)
+        # ---numeric offset like '-08:00'---
         if len(offset_str) == 6:
-            return cls._offset_dt(timestamp, offset_str)
+            return timestamp.replace(tzinfo=cls._tzinfo_from_offset_str(offset_str))
+        # ---no timezone marker; return naive (don't assume UTC)---
         return timestamp
 
     def _set_element_datetime(self, prop_name: str, value: dt.datetime) -> None:
-        """Set date/time value of child element having `prop_name` to `value`."""
+        """Set date/time value of child element having `prop_name` to `value`.
+
+        Accepts both naive and tz-aware datetimes. Tz-aware inputs are
+        converted to UTC before serialization so the on-disk W3CDTF form
+        always uses the canonical ``YYYY-MM-DDTHH:MM:SSZ`` shape. Naive
+        inputs are written as-is (with the trailing ``Z`` suffix indicating
+        UTC) — callers passing naive datetimes are responsible for the
+        timezone interpretation.
+        """
         if not isinstance(value, dt.datetime):  # pyright: ignore[reportUnnecessaryIsInstance]
             tmpl = "property requires <type 'datetime.datetime'> object, got %s"
             raise ValueError(tmpl % type(value))
+        # ---tz-aware -> normalize to UTC before serializing---
+        if value.tzinfo is not None:
+            value = value.astimezone(dt.timezone.utc).replace(tzinfo=None)
         element = self._get_or_add(prop_name)
         dt_str = value.strftime("%Y-%m-%dT%H:%M:%SZ")
         element.text = dt_str
