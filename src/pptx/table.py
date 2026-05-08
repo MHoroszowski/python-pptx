@@ -166,6 +166,124 @@ class Table(object):
     def vert_banding(self, value: bool):
         self._tbl.bandCol = value
 
+    def merge_cells(self, row_range, col_range) -> "_Cell":
+        """Merge a rectangular block of cells into a single merged cell.
+
+        ``row_range`` and ``col_range`` accept either:
+
+        - a 2-tuple ``(start, end)`` interpreted as **inclusive** indices —
+          ``(0, 1)`` covers rows 0 and 1.
+        - a Python ``range`` object — half-open per Python convention; ``range(0, 2)``
+          covers rows 0 and 1.
+
+        The order within each range is irrelevant: ``(2, 0)`` is the same as ``(0, 2)``.
+
+        Idempotent: if the entire requested range is already merged exactly
+        as a single block with the same origin and dimensions, the call is
+        a no-op and returns the existing merge-origin cell. Calling on a
+        single-cell range that is not merged is also a no-op (no merge is
+        needed for one cell).
+
+        Raises |ValueError| if the requested range partially overlaps an
+        existing merge with different boundaries — the caller is expected
+        to ``split_cells`` that overlap first.
+
+        Returns the |_Cell| at the merge origin (top-left of the merged
+        block).
+        """
+        top, bottom = _normalize_range(row_range)
+        left, right = _normalize_range(col_range)
+
+        origin_tc = self._tbl.tc(top, left)
+        bottom_right_tc = self._tbl.tc(bottom, right)
+
+        # ---single-cell range (no merge needed); return cell as-is---
+        if top == bottom and left == right:
+            return _Cell(origin_tc, self)
+
+        target_row_count = bottom - top + 1
+        target_col_count = right - left + 1
+
+        # ---idempotency check: already merged exactly this way?---
+        if (
+            origin_tc.is_merge_origin
+            and origin_tc.rowSpan == target_row_count
+            and origin_tc.gridSpan == target_col_count
+        ):
+            return _Cell(origin_tc, self)
+
+        tc_range = TcRange(origin_tc, bottom_right_tc)
+        if tc_range.contains_merged_cell:
+            raise ValueError(
+                "merge_cells range partially overlaps an existing merge; "
+                "call split_cells on the overlap first"
+            )
+
+        tc_range.move_content_to_origin()
+
+        for tc in tc_range.iter_top_row_tcs():
+            tc.rowSpan = target_row_count
+        for tc in tc_range.iter_left_col_tcs():
+            tc.gridSpan = target_col_count
+        for tc in tc_range.iter_except_left_col_tcs():
+            tc.hMerge = True
+        for tc in tc_range.iter_except_top_row_tcs():
+            tc.vMerge = True
+
+        return _Cell(origin_tc, self)
+
+    def split_cells(self, row_range, col_range) -> None:
+        """Split (un-merge) any merges fully contained in this range.
+
+        ``row_range`` and ``col_range`` follow the same shape rules as
+        :meth:`merge_cells` — tuples are inclusive, ``range`` objects are
+        half-open.
+
+        Idempotent: cells in the range that aren't part of a merge are
+        skipped silently. The order within each range is irrelevant.
+
+        Raises |ValueError| if a merge in the range extends *beyond* the
+        range boundary — splitting it would orphan the rest of the merge,
+        so the caller must widen the range to include the full merge or
+        call this on the full merge directly.
+        """
+        top, bottom = _normalize_range(row_range)
+        left, right = _normalize_range(col_range)
+
+        # ---first pass: validate every merge that intersects the range
+        # ---is FULLY contained (origin + extent inside [top..bottom, left..right])---
+        for r in range(top, bottom + 1):
+            for c in range(left, right + 1):
+                tc = self._tbl.tc(r, c)
+                if tc.is_merge_origin:
+                    if r + tc.rowSpan - 1 > bottom or c + tc.gridSpan - 1 > right:
+                        raise ValueError(
+                            "merge at (%d, %d) extends outside split range; "
+                            "widen the range or call split_cells on the full merge" % (r, c)
+                        )
+                elif tc.hMerge or tc.vMerge:
+                    # ---spanned cell whose origin is OUTSIDE the range = boundary cross---
+                    # ---walk back to origin to verify---
+                    origin_r, origin_c = _find_merge_origin(self._tbl, r, c)
+                    if origin_r < top or origin_c < left:
+                        raise ValueError(
+                            "merge containing (%d, %d) starts outside split range; "
+                            "widen the range or call split_cells on the full merge" % (r, c)
+                        )
+
+        # ---second pass: split each merge-origin in range (idempotent on non-merges)---
+        for r in range(top, bottom + 1):
+            for c in range(left, right + 1):
+                tc = self._tbl.tc(r, c)
+                if not tc.is_merge_origin:
+                    continue
+                tc_range = TcRange.from_merge_origin(tc)
+                for inner_tc in tc_range.iter_tcs():
+                    inner_tc.rowSpan = 1
+                    inner_tc.gridSpan = 1
+                    inner_tc.hMerge = False
+                    inner_tc.vMerge = False
+
     @property
     def style_id(self) -> str | None:
         """The GUID identifying this table's built-in style, or |None|.
@@ -244,6 +362,52 @@ _GUID_RE = re.compile(
 def _looks_like_guid(value: str) -> bool:
     """True when `value` matches the canonical brace-wrapped GUID shape."""
     return bool(_GUID_RE.match(value))
+
+
+def _normalize_range(rng) -> tuple[int, int]:
+    """Normalize a `merge_cells`/`split_cells` range argument to `(low, high)` inclusive.
+
+    Accepts a 2-tuple (interpreted as inclusive `(start, end)`) or a Python
+    `range` object (half-open per Python convention). Order within either
+    form is irrelevant — `(2, 0)` becomes `(0, 2)`. Raises `TypeError` on
+    other input shapes.
+    """
+    if isinstance(rng, range):
+        # ---half-open: range(0, 2) covers 0..1 inclusive---
+        if rng.step != 1:
+            raise ValueError("range step must be 1, got %r" % rng.step)
+        if len(rng) == 0:
+            raise ValueError("range is empty: %r" % rng)
+        low, high = rng.start, rng.stop - 1
+    elif isinstance(rng, tuple) and len(rng) == 2:
+        a, b = rng
+        low, high = (a, b) if a <= b else (b, a)
+    else:
+        raise TypeError(
+            "range argument must be a 2-tuple (inclusive) or a range object, got %r" % (rng,)
+        )
+    if low < 0 or high < 0:
+        raise ValueError("range indices must be non-negative")
+    return low, high
+
+
+def _find_merge_origin(tbl, row_idx: int, col_idx: int) -> tuple[int, int]:
+    """Walk back from a spanned cell to the (row, col) of its merge origin.
+
+    A spanned cell carries `hMerge=True` and/or `vMerge=True` and its origin
+    sits at some `(r0, c0)` where `r0 <= row_idx` and `c0 <= col_idx`. The
+    origin's `rowSpan`/`gridSpan` covers (row_idx, col_idx). We scan
+    leftward until `hMerge` is False, then upward until `vMerge` is False —
+    that lands on the origin in two passes.
+    """
+    r, c = row_idx, col_idx
+    # ---scan left through hMerge cells---
+    while c > 0 and tbl.tc(r, c).hMerge:
+        c -= 1
+    # ---scan up through vMerge cells---
+    while r > 0 and tbl.tc(r, c).vMerge:
+        r -= 1
+    return r, c
 
 
 class _BorderEdge:
@@ -347,6 +511,51 @@ class _Cell(Subshape):
         """
         tcPr = self._tc.get_or_add_tcPr()
         return FillFormat.from_fill_parent(tcPr)
+
+    @property
+    def grid_span(self) -> int:
+        """Number of grid columns this cell spans (1 if not a horizontal merge origin).
+
+        Read-only. Mirrors the underlying ``a:tc/@gridSpan`` attribute. A
+        merge-origin cell that spans ``N`` columns reports ``N``; a spanned
+        (non-origin) cell reports 1 even when it is part of a merge — the
+        merge origin holds the dimension; spanned cells carry ``h_merge`` /
+        ``v_merge`` instead. Use this together with ``row_span`` /
+        ``h_merge`` / ``v_merge`` to inspect any cell's merge state without
+        relying on `is_merge_origin` heuristics.
+        """
+        return self._tc.gridSpan
+
+    @property
+    def row_span(self) -> int:
+        """Number of grid rows this cell spans (1 if not a vertical merge origin).
+
+        Read-only. Mirrors the underlying ``a:tc/@rowSpan`` attribute. Same
+        contract as ``grid_span`` but for rows. See ``grid_span`` docstring.
+        """
+        return self._tc.rowSpan
+
+    @property
+    def h_merge(self) -> bool:
+        """True if this cell is part of a horizontal merge but is NOT the origin.
+
+        Read-only. Mirrors the underlying ``a:tc/@hMerge`` attribute.
+        Always |False| on the merge-origin cell of a horizontal merge —
+        only the spanned cells (those to the right of the origin) carry
+        ``hMerge=True`` in the underlying XML.
+        """
+        return self._tc.hMerge
+
+    @property
+    def v_merge(self) -> bool:
+        """True if this cell is part of a vertical merge but is NOT the origin.
+
+        Read-only. Mirrors the underlying ``a:tc/@vMerge`` attribute.
+        Always |False| on the merge-origin cell of a vertical merge —
+        only the spanned cells (those below the origin) carry
+        ``vMerge=True`` in the underlying XML.
+        """
+        return self._tc.vMerge
 
     @property
     def is_merge_origin(self) -> bool:
