@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Iterator
 
 from pptx.dml.fill import FillFormat
@@ -164,6 +165,85 @@ class Table(object):
     @vert_banding.setter
     def vert_banding(self, value: bool):
         self._tbl.bandCol = value
+
+    @property
+    def style_id(self) -> str | None:
+        """The GUID identifying this table's built-in style, or |None|.
+
+        Read/write. Maps to ``a:tbl/a:tblPr/a:tableStyleId``. PowerPoint
+        emits the GUID in canonical brace-wrapped upper-case-hex shape, e.g.
+        ``"{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"`` for "Medium Style 2 -
+        Accent 1". Setting to |None| removes the element.
+        """
+        tblPr = self._tbl.tblPr
+        if tblPr is None:
+            return None
+        return tblPr.style_id
+
+    @style_id.setter
+    def style_id(self, value: str | None) -> None:
+        if value is None:
+            tblPr = self._tbl.tblPr
+            if tblPr is None:
+                return
+            tblPr.style_id = None
+            return
+        tblPr = self._tbl.get_or_add_tblPr()
+        tblPr.style_id = value
+
+    @property
+    def style_name(self) -> str | None:
+        """Friendly name of the current built-in style, or |None|.
+
+        Returns the friendly name (e.g. ``"Medium Style 2 - Accent 1"``)
+        when the current ``style_id`` is in the built-in registry. Returns
+        |None| when no style is set, or when the GUID is set but not
+        recognized — the GUID is still readable via ``style_id`` in that
+        case (lossless fallback).
+        """
+        from pptx.enum.table import style_name_for
+
+        guid = self.style_id
+        if guid is None:
+            return None
+        return style_name_for(guid)
+
+    def apply_style(self, name_or_guid: str) -> None:
+        """Set this table's style by friendly name or raw GUID.
+
+        ``name_or_guid`` may be:
+
+        - A built-in style name like ``"Medium Style 2 - Accent 1"`` —
+          resolved against ``pptx.enum.table.PP_TABLE_STYLE``
+          (case-insensitive). Raises |ValueError| if the name is not in the
+          registry.
+        - A GUID string in canonical brace-wrapped form (e.g.
+          ``"{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"``) — written through
+          verbatim, allowing styles not yet in the registry (custom
+          ``tableStyles.xml`` entries, additional Office built-ins) to be
+          applied directly.
+
+        For the GUID form the registry is not consulted — the value is
+        treated as opaque and lossless. Use ``style_name`` to read back the
+        friendly name when one is registered.
+        """
+        from pptx.enum.table import lookup_table_style
+
+        if _looks_like_guid(name_or_guid):
+            self.style_id = name_or_guid
+            return
+        # ---friendly name path: registry lookup, ValueError on miss---
+        self.style_id = lookup_table_style(name_or_guid)
+
+
+_GUID_RE = re.compile(
+    r"^\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}$"
+)
+
+
+def _looks_like_guid(value: str) -> bool:
+    """True when `value` matches the canonical brace-wrapped GUID shape."""
+    return bool(_GUID_RE.match(value))
 
 
 class _BorderEdge:
