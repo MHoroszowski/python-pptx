@@ -246,7 +246,9 @@ def grammar():
     close_brace = Suppress("}")
 
     # np:tagName ---------------------------------
-    nspfx = Word(alphas)
+    # ---namespace prefix may contain digits after the leading letter
+    #    (e.g. `p14`, `w14`, `o15`); local-name allows alphanums---
+    nspfx = Word(alphas, alphanums)
     local_name = Word(alphanums)
     tagname = Combine(nspfx + colon + local_name)
 

@@ -310,3 +310,56 @@ def then_append_from_index_99_raises(context):
 
     with pytest.raises(IndexError):
         context.target_pres.append_from(context.source_pres, slide_indexes=[99])
+
+
+# Sections (Phase 4) =======================================
+
+
+@then("len(prs.sections) is {n:d}")
+def then_len_prs_sections_is_n(context, n):
+    assert len(context.prs.sections) == n
+
+
+@when('I call prs.sections.add_section("{name}")')
+def when_prs_sections_add_section(context, name):
+    context.section = context.prs.sections.add_section(name)
+
+
+@then('prs.sections[0].name is "{expected}"')
+def then_prs_sections_0_name_is(context, expected):
+    assert context.prs.sections[0].name == expected
+
+
+@when("I call section.add_slide(prs.slides[0])")
+def when_section_add_slide_0(context):
+    context.tracked_slide_id = context.prs.slides[0].slide_id
+    context.section.add_slide(context.prs.slides[0])
+
+
+@then("len(section.slides) is {n:d}")
+def then_len_section_slides_is_n(context, n):
+    assert len(context.section.slides) == n
+
+
+@then("section.slides still contains the moved slide")
+def then_section_still_contains_moved_slide(context):
+    section_slide_ids = [s.slide_id for s in context.section.slides]
+    assert context.tracked_slide_id in section_slide_ids, (
+        "expected slide_id %r in section.slides %r"
+        % (context.tracked_slide_id, section_slide_ids)
+    )
+
+
+@then("the moved slide is at presentation index {idx:d}")
+def then_moved_slide_at_index(context, idx):
+    assert context.prs.slides[idx].slide_id == context.tracked_slide_id
+
+
+@when("I call prs.sections.remove(section)")
+def when_prs_sections_remove(context):
+    context.prs.sections.remove(context.section)
+
+
+@then("prs._element.extLst is None")
+def then_prs_element_extLst_is_None(context):
+    assert context.prs._element.extLst is None

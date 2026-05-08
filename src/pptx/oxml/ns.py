@@ -21,6 +21,7 @@ _nsmap = {
     "o": "urn:schemas-microsoft-com:office:office",
     "op": "http://schemas.openxmlformats.org/officeDocument/2006/custom-properties",
     "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
+    "p14": "http://schemas.microsoft.com/office/powerpoint/2010/main",
     "pd": "http://schemas.openxmlformats.org/drawingml/2006/presentationDrawing",
     "pic": "http://schemas.openxmlformats.org/drawingml/2006/picture",
     "pr": "http://schemas.openxmlformats.org/package/2006/relationships",
