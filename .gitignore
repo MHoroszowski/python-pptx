@@ -2,6 +2,7 @@
 .cache
 .coverage
 /.tox/
+/.venv/
 /src/*.egg-info
 *.pyc
 /dist/
@@ -11,3 +12,5 @@ _scratch/
 /spec/gen_spec/spec*.db
 tags
 /tests/debug.py
+/uat/
+/AGENTS.md
