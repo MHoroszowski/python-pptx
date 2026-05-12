@@ -12,8 +12,5 @@ _scratch/
 /spec/gen_spec/spec*.db
 tags
 /tests/debug.py
-# ---per repo CLAUDE.md §6, UAT scripts and their output decks live untracked
-# ---at the repo root for the maintainer to inspect during PR signoff---
-/uat_*.py
-/uat_*.pptx
+/uat/
 /AGENTS.md
