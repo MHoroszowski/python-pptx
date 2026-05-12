@@ -26,6 +26,7 @@ from pptx.oxml.simpletypes import (
     ST_TextTypeface,
     ST_TextWrappingType,
     XsdBoolean,
+    XsdString,
 )
 from pptx.oxml.xmlchemy import (
     BaseOxmlElement,
@@ -329,7 +330,13 @@ class CT_TextCharacterProperties(BaseOxmlElement):
 
 
 class CT_TextField(BaseOxmlElement):
-    """`a:fld` field element, for either a slide number or date field."""
+    """`a:fld` field element, for either a slide number or date field.
+
+    `id` is a required GUID identifier per ECMA-376 §A.4.1. `type` names the
+    field semantics — `slidenum`, `datetime1`..`datetime13`, `title`, etc. —
+    and is optional in the OOXML schema, though PowerPoint emits it on
+    every field it authors.
+    """
 
     get_or_add_rPr: Callable[[], CT_TextCharacterProperties]
 
@@ -338,6 +345,10 @@ class CT_TextField(BaseOxmlElement):
     )
     t: BaseOxmlElement | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
         "a:t", successors=()
+    )
+    id: str = RequiredAttribute("id", XsdString)  # pyright: ignore[reportAssignmentType]
+    type: str | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "type", XsdString
     )
 
     @property

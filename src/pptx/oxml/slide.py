@@ -126,11 +126,51 @@ class CT_CommonSlideData(BaseOxmlElement):
         return bg
 
 
+class CT_HandoutMaster(_BaseSlideElement):
+    """`p:handoutMaster` element, root of a handout master part.
+
+    Content model per ECMA-376 §19.3.1.24: `(cSld, clrMap, hf?, extLst?)`.
+    """
+
+    _tag_seq = ("p:cSld", "p:clrMap", "p:hf", "p:extLst")
+    cSld: CT_CommonSlideData = OneAndOnlyOne("p:cSld")  # pyright: ignore[reportAssignmentType]
+    hf: CT_HeaderFooter | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
+        "p:hf", successors=_tag_seq[3:]
+    )
+    del _tag_seq
+
+
+class CT_HeaderFooter(BaseOxmlElement):
+    """`p:hf` element, configuring per-template visibility of slide-number, header, footer,
+    and date placeholders.
+
+    Appears as a child of `p:sldMaster`, `p:sldLayout`, `p:notesMaster`, and
+    `p:handoutMaster`. Each of the four boolean attributes defaults to True
+    when omitted (ECMA-376 §19.3.1.18).
+    """
+
+    sldNum: bool = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "sldNum", XsdBoolean, default=True
+    )
+    hdr: bool = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "hdr", XsdBoolean, default=True
+    )
+    ftr: bool = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "ftr", XsdBoolean, default=True
+    )
+    dt: bool = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "dt", XsdBoolean, default=True
+    )
+
+
 class CT_NotesMaster(_BaseSlideElement):
     """`p:notesMaster` element, root of a notes master part."""
 
     _tag_seq = ("p:cSld", "p:clrMap", "p:hf", "p:notesStyle", "p:extLst")
     cSld: CT_CommonSlideData = OneAndOnlyOne("p:cSld")  # pyright: ignore[reportAssignmentType]
+    hf: CT_HeaderFooter | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
+        "p:hf", successors=_tag_seq[3:]
+    )
     del _tag_seq
 
     @classmethod
@@ -259,6 +299,9 @@ class CT_SlideLayout(_BaseSlideElement):
 
     _tag_seq = ("p:cSld", "p:clrMapOvr", "p:transition", "p:timing", "p:hf", "p:extLst")
     cSld: CT_CommonSlideData = OneAndOnlyOne("p:cSld")  # pyright: ignore[reportAssignmentType]
+    hf: CT_HeaderFooter | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
+        "p:hf", successors=_tag_seq[5:]
+    )
     del _tag_seq
 
 
@@ -300,6 +343,9 @@ class CT_SlideMaster(_BaseSlideElement):
     cSld: CT_CommonSlideData = OneAndOnlyOne("p:cSld")  # pyright: ignore[reportAssignmentType]
     sldLayoutIdLst: CT_SlideLayoutIdList = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
         "p:sldLayoutIdLst", successors=_tag_seq[3:]
+    )
+    hf: CT_HeaderFooter | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
+        "p:hf", successors=_tag_seq[6:]
     )
     del _tag_seq
 
