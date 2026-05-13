@@ -368,6 +368,18 @@ class ST_Extension(XsdString):
     pass
 
 
+class ST_FieldType(XsdString):
+    """Field-type token on `<a:fld type="...">` per ECMA-376 §A.4.1.
+
+    Values are PowerPoint-defined strings such as `slidenum`, `datetime1` ..
+    `datetime13`, and `title`. Type is intentionally permissive (a plain
+    string) — the schema itself does not enumerate the values, and
+    PowerPoint accepts any token.
+    """
+
+    pass
+
+
 class ST_GapAmount(BaseIntType):
     """
     String value is an integer in range 0-500, representing a percent,

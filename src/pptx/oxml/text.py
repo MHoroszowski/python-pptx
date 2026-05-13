@@ -18,6 +18,7 @@ from pptx.oxml.dml.fill import CT_GradientFillProperties
 from pptx.oxml.ns import nsdecls
 from pptx.oxml.simpletypes import (
     ST_Coordinate32,
+    ST_FieldType,
     ST_TextFontScalePercentOrPercentString,
     ST_TextFontSize,
     ST_TextIndentLevelType,
@@ -339,6 +340,7 @@ class CT_TextField(BaseOxmlElement):
     """
 
     get_or_add_rPr: Callable[[], CT_TextCharacterProperties]
+    get_or_add_t: Callable[[], BaseOxmlElement]
 
     rPr: CT_TextCharacterProperties | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
         "a:rPr", successors=("a:pPr", "a:t")
@@ -348,7 +350,7 @@ class CT_TextField(BaseOxmlElement):
     )
     id: str = RequiredAttribute("id", XsdString)  # pyright: ignore[reportAssignmentType]
     type: str | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
-        "type", XsdString
+        "type", ST_FieldType
     )
 
     @property
@@ -358,6 +360,28 @@ class CT_TextField(BaseOxmlElement):
         if t is None:
             return ""
         return t.text or ""
+
+    @text.setter
+    def text(self, value: str):  # pyright: ignore[reportIncompatibleMethodOverride]
+        """Replace the text of the `a:t` child, escaping control chars.
+
+        Adds an `a:t` child element if not already present. Characters in the
+        ASCII control range 0x00-0x08 and 0x0B-0x1F (everything except `\\t`
+        and `\\n`) are replaced with their `_xNNNN_` plain-text escape per
+        OOXML §22.9.2.19, matching the behavior of `CT_RegularTextRun.text`.
+        """
+        t = self.get_or_add_t()
+        t.text = self._escape_ctrl_chars(value)
+
+    @staticmethod
+    def _escape_ctrl_chars(s: str) -> str:
+        """Return str after replacing each control character with a plain-text escape.
+
+        For example, a BEL character (x07) would appear as "_x0007_". Horizontal-tab
+        (x09) and line-feed (x0A) are not escaped. All other characters in the range
+        x00-x1F are escaped.
+        """
+        return re.sub(r"([\x00-\x08\x0B-\x1F])", lambda match: "_x%04X_" % ord(match.group(1)), s)
 
 
 class CT_TextFont(BaseOxmlElement):
@@ -403,6 +427,7 @@ class CT_TextParagraph(BaseOxmlElement):
     get_or_add_pPr: Callable[[], CT_TextParagraphProperties]
     r_lst: list[CT_RegularTextRun]
     _add_br: Callable[[], CT_TextLineBreak]
+    _add_fld: Callable[[], CT_TextField]
     _add_r: Callable[[], CT_RegularTextRun]
 
     pPr: CT_TextParagraphProperties | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
@@ -410,6 +435,7 @@ class CT_TextParagraph(BaseOxmlElement):
     )
     r = ZeroOrMore("a:r", successors=("a:endParaRPr",))
     br = ZeroOrMore("a:br", successors=("a:endParaRPr",))
+    fld = ZeroOrMore("a:fld", successors=("a:endParaRPr",))
     endParaRPr: CT_TextCharacterProperties | None = ZeroOrOne("a:endParaRPr", successors=())  # pyright: ignore[reportAssignmentType]
 
     def add_br(self) -> CT_TextLineBreak:
