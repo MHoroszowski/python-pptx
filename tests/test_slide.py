@@ -4,8 +4,11 @@
 
 from __future__ import annotations
 
+from io import BytesIO
+
 import pytest
 
+from pptx import Presentation as PresentationFactory
 from pptx.dml.fill import FillFormat
 from pptx.enum.shapes import PP_PLACEHOLDER
 from pptx.package import Package
@@ -13,7 +16,7 @@ from pptx.parts.presentation import PresentationPart
 from pptx.parts.slide import SlideLayoutPart, SlideMasterPart, SlidePart
 from pptx.presentation import Presentation
 from pptx.shapes.base import BaseShape
-from pptx.shapes.placeholder import LayoutPlaceholder, NotesSlidePlaceholder
+from pptx.shapes.placeholder import LayoutPlaceholder, NotesSlidePlaceholder, SlidePlaceholder
 from pptx.shapes.shapetree import (
     LayoutPlaceholders,
     LayoutShapes,
@@ -41,6 +44,20 @@ from pptx.text.text import TextFrame
 
 from .unitutil.cxml import element, xml
 from .unitutil.mock import call, class_mock, instance_mock, method_mock, property_mock
+
+
+def _placeholder_with_type(
+    request,
+    placeholder_cls: type[LayoutPlaceholder | NotesSlidePlaceholder | SlidePlaceholder],
+    ph_type: PP_PLACEHOLDER,
+    text: str = "",
+):
+    """Return placeholder mock configured with `ph_type` and `text`."""
+    placeholder_ = instance_mock(request, placeholder_cls)
+    placeholder_.placeholder_format.type = ph_type
+    placeholder_.text_frame.text = text
+    placeholder_.element.ph_type = ph_type
+    return placeholder_
 
 
 class Describe_BaseSlide(object):
@@ -372,6 +389,217 @@ class DescribeSlide(object):
         slide, notes_slide_ = notes_slide_fixture
         assert slide.notes_slide is notes_slide_
 
+    def it_knows_when_it_has_no_footer(self, request):
+        slide = Slide(None, None)
+        property_mock(request, Slide, "placeholders", return_value=())
+
+        assert slide.has_footer is False
+        assert slide.footer is None
+
+    def it_knows_when_it_has_a_footer_with_empty_text(self, request):
+        footer_placeholder = _placeholder_with_type(
+            request, SlidePlaceholder, PP_PLACEHOLDER.FOOTER
+        )
+        slide = Slide(None, None)
+        property_mock(request, Slide, "placeholders", return_value=(footer_placeholder,))
+
+        assert slide.has_footer is True
+        assert slide.footer == ""
+
+    def it_knows_its_footer_text(self, request):
+        footer_placeholder = _placeholder_with_type(
+            request, SlidePlaceholder, PP_PLACEHOLDER.FOOTER, "Quarter Close"
+        )
+        slide = Slide(None, None)
+        property_mock(request, Slide, "placeholders", return_value=(footer_placeholder,))
+
+        assert slide.footer == "Quarter Close"
+
+    def it_returns_the_first_footer_in_document_order(self, request):
+        first_footer = _placeholder_with_type(
+            request, SlidePlaceholder, PP_PLACEHOLDER.FOOTER, "First footer"
+        )
+        date_placeholder = _placeholder_with_type(
+            request, SlidePlaceholder, PP_PLACEHOLDER.DATE, "2026-05-13"
+        )
+        second_footer = _placeholder_with_type(
+            request, SlidePlaceholder, PP_PLACEHOLDER.FOOTER, "Second footer"
+        )
+        slide = Slide(None, None)
+        property_mock(
+            request,
+            Slide,
+            "placeholders",
+            return_value=(first_footer, date_placeholder, second_footer),
+        )
+
+        assert slide.footer == "First footer"
+
+    def it_can_set_footer_text_when_already_present(self, request):
+        footer_placeholder = _placeholder_with_type(
+            request, SlidePlaceholder, PP_PLACEHOLDER.FOOTER
+        )
+        slide = Slide(None, None)
+        property_mock(request, Slide, "placeholders", return_value=(footer_placeholder,))
+
+        slide.footer = "Phase 2 footer"
+
+        assert slide.has_footer is True
+        assert footer_placeholder.text_frame.text == "Phase 2 footer"
+
+    def it_can_set_footer_text_when_absent_by_cloning_from_layout(self):
+        prs = PresentationFactory()
+        slide = prs.slides.add_slide(prs.slide_layouts[0])
+
+        assert slide.has_footer is False
+        assert slide.footer is None
+
+        slide.footer = "Phase 2 footer"
+
+        assert slide.has_footer is True
+        assert slide.footer == "Phase 2 footer"
+
+        out = BytesIO()
+        prs.save(out)
+        out.seek(0)
+        reopened = PresentationFactory(out)
+        assert reopened.slides[0].footer == "Phase 2 footer"
+
+    def it_can_clear_footer_text_by_setting_None(self):
+        prs = PresentationFactory()
+        slide = prs.slides.add_slide(prs.slide_layouts[0])
+        slide.footer = "Phase 2 footer"
+
+        slide.footer = None
+
+        assert slide.has_footer is True
+        assert slide.footer == ""
+
+    def it_can_clear_footer_text_by_setting_empty_string(self):
+        prs = PresentationFactory()
+        slide = prs.slides.add_slide(prs.slide_layouts[0])
+        slide.footer = "Phase 2 footer"
+
+        slide.footer = ""
+
+        assert slide.has_footer is True
+        assert slide.footer == ""
+
+    def it_leaves_footer_absent_when_clearing_nonexistent_footer(self):
+        prs = PresentationFactory()
+        slide = prs.slides.add_slide(prs.slide_layouts[0])
+
+        slide.footer = None
+
+        assert slide.has_footer is False
+        assert slide.footer is None
+
+    def it_raises_when_setting_footer_with_no_layout_FOOTER_placeholder(self, request):
+        object_placeholder = _placeholder_with_type(
+            request, LayoutPlaceholder, PP_PLACEHOLDER.OBJECT
+        )
+        slide_layout_ = instance_mock(request, SlideLayout)
+        slide_layout_.placeholders = (object_placeholder,)
+        property_mock(request, Slide, "slide_layout", return_value=slide_layout_)
+        property_mock(request, Slide, "placeholders", return_value=())
+        slide = Slide(None, None)
+
+        with pytest.raises(ValueError) as excinfo:
+            slide.footer = "Phase 2 footer"
+
+        assert str(excinfo.value) == "slide layout has no FOOTER placeholder to clone from"
+
+    def it_knows_when_it_has_a_slide_number_placeholder(self, request):
+        slide_number_placeholder = _placeholder_with_type(
+            request, SlidePlaceholder, PP_PLACEHOLDER.SLIDE_NUMBER
+        )
+        slide = Slide(None, None)
+        property_mock(request, Slide, "placeholders", return_value=(slide_number_placeholder,))
+
+        assert slide.has_slide_number is True
+
+    def it_knows_when_it_has_no_slide_number_placeholder(self, request):
+        footer_placeholder = _placeholder_with_type(
+            request, SlidePlaceholder, PP_PLACEHOLDER.FOOTER
+        )
+        slide = Slide(None, None)
+        property_mock(request, Slide, "placeholders", return_value=(footer_placeholder,))
+
+        assert slide.has_slide_number is False
+
+    def it_knows_when_it_has_no_date(self, request):
+        slide = Slide(None, None)
+        property_mock(request, Slide, "placeholders", return_value=())
+
+        assert slide.has_date is False
+        assert slide.date_text is None
+
+    def it_knows_when_it_has_a_date_placeholder_with_text(self, request):
+        date_placeholder = _placeholder_with_type(
+            request, SlidePlaceholder, PP_PLACEHOLDER.DATE, "2026-05-13"
+        )
+        slide = Slide(None, None)
+        property_mock(request, Slide, "placeholders", return_value=(date_placeholder,))
+
+        assert slide.has_date is True
+        assert slide.date_text == "2026-05-13"
+
+    def it_can_set_date_text_when_present(self, request):
+        date_placeholder = _placeholder_with_type(request, SlidePlaceholder, PP_PLACEHOLDER.DATE)
+        slide = Slide(None, None)
+        property_mock(request, Slide, "placeholders", return_value=(date_placeholder,))
+
+        slide.date_text = "2026-05-13"
+
+        assert slide.has_date is True
+        assert date_placeholder.text_frame.text == "2026-05-13"
+
+    def it_can_clear_date_text_by_setting_None(self):
+        prs = PresentationFactory()
+        slide = prs.slides.add_slide(prs.slide_layouts[0])
+        slide.date_text = "2026-05-13"
+
+        slide.date_text = None
+
+        assert slide.has_date is True
+        assert slide.date_text == ""
+
+    def it_can_clone_date_from_layout_on_set(self):
+        prs = PresentationFactory()
+        slide = prs.slides.add_slide(prs.slide_layouts[0])
+
+        assert slide.has_date is False
+        assert slide.date_text is None
+
+        slide.date_text = "2026-05-13"
+
+        assert slide.has_date is True
+        assert slide.date_text == "2026-05-13"
+
+    def it_leaves_date_absent_when_clearing_nonexistent_date(self):
+        prs = PresentationFactory()
+        slide = prs.slides.add_slide(prs.slide_layouts[0])
+
+        slide.date_text = ""
+
+        assert slide.has_date is False
+        assert slide.date_text is None
+
+    def it_raises_when_setting_date_with_no_layout_DATE_placeholder(self, request):
+        object_placeholder = _placeholder_with_type(
+            request, LayoutPlaceholder, PP_PLACEHOLDER.OBJECT
+        )
+        slide_layout_ = instance_mock(request, SlideLayout)
+        slide_layout_.placeholders = (object_placeholder,)
+        property_mock(request, Slide, "slide_layout", return_value=slide_layout_)
+        property_mock(request, Slide, "placeholders", return_value=())
+        slide = Slide(None, None)
+
+        with pytest.raises(ValueError) as excinfo:
+            slide.date_text = "2026-05-13"
+
+        assert str(excinfo.value) == "slide layout has no DATE placeholder to clone from"
+
     # fixtures -------------------------------------------------------
 
     @pytest.fixture
@@ -679,6 +907,113 @@ class DescribeSlideLayout(object):
 
         assert used_by_slides == expected_value
 
+    def it_knows_show_slide_number_defaults_True_when_hf_absent(self):
+        slide_layout = SlideLayout(element("p:sldLayout/p:cSld/p:spTree"), None)
+        assert slide_layout.show_slide_number is True
+
+    def it_knows_show_footer_defaults_True_when_hf_absent(self):
+        slide_layout = SlideLayout(element("p:sldLayout/p:cSld/p:spTree"), None)
+        assert slide_layout.show_footer is True
+
+    def it_knows_show_date_defaults_True_when_hf_absent(self):
+        slide_layout = SlideLayout(element("p:sldLayout/p:cSld/p:spTree"), None)
+        assert slide_layout.show_date is True
+
+    def it_knows_show_header_defaults_True_when_hf_absent(self):
+        slide_layout = SlideLayout(element("p:sldLayout/p:cSld/p:spTree"), None)
+        assert slide_layout.show_header is True
+
+    @pytest.mark.parametrize(
+        ("prop_name", "sldLayout_cxml", "expected_value"),
+        [
+            ("show_slide_number", "p:sldLayout/(p:cSld/p:spTree,p:hf{sldNum=0})", False),
+            ("show_footer", "p:sldLayout/(p:cSld/p:spTree,p:hf{ftr=0})", False),
+            ("show_date", "p:sldLayout/(p:cSld/p:spTree,p:hf{dt=0})", False),
+            ("show_header", "p:sldLayout/(p:cSld/p:spTree,p:hf{hdr=0})", False),
+            ("show_slide_number", "p:sldLayout/(p:cSld/p:spTree,p:hf{sldNum=1})", True),
+            ("show_footer", "p:sldLayout/(p:cSld/p:spTree,p:hf{ftr=1})", True),
+            ("show_date", "p:sldLayout/(p:cSld/p:spTree,p:hf{dt=1})", True),
+            ("show_header", "p:sldLayout/(p:cSld/p:spTree,p:hf{hdr=1})", True),
+        ],
+    )
+    def it_knows_show_attrs_when_hf_present(
+        self, prop_name: str, sldLayout_cxml: str, expected_value: bool
+    ):
+        slide_layout = SlideLayout(element(sldLayout_cxml), None)
+        assert getattr(slide_layout, prop_name) is expected_value
+
+    def it_can_set_show_slide_number_False_creates_hf(self):
+        slide_layout = SlideLayout(element("p:sldLayout/p:cSld/p:spTree"), None)
+
+        slide_layout.show_slide_number = False
+
+        assert slide_layout._element.xml == xml("p:sldLayout/(p:cSld/p:spTree,p:hf{sldNum=0})")
+
+    def it_can_set_show_footer_False_creates_hf(self):
+        slide_layout = SlideLayout(element("p:sldLayout/p:cSld/p:spTree"), None)
+
+        slide_layout.show_footer = False
+
+        assert slide_layout._element.xml == xml("p:sldLayout/(p:cSld/p:spTree,p:hf{ftr=0})")
+
+    def it_can_set_show_date_False_creates_hf(self):
+        slide_layout = SlideLayout(element("p:sldLayout/p:cSld/p:spTree"), None)
+
+        slide_layout.show_date = False
+
+        assert slide_layout._element.xml == xml("p:sldLayout/(p:cSld/p:spTree,p:hf{dt=0})")
+
+    def it_can_set_show_header_False_creates_hf(self):
+        slide_layout = SlideLayout(element("p:sldLayout/p:cSld/p:spTree"), None)
+
+        slide_layout.show_header = False
+
+        assert slide_layout._element.xml == xml("p:sldLayout/(p:cSld/p:spTree,p:hf{hdr=0})")
+
+    @pytest.mark.parametrize(
+        "prop_name", ["show_slide_number", "show_footer", "show_date", "show_header"]
+    )
+    def it_setting_show_attr_True_when_hf_absent_is_no_op(self, prop_name: str):
+        slide_layout = SlideLayout(element("p:sldLayout/p:cSld/p:spTree"), None)
+
+        setattr(slide_layout, prop_name, True)
+
+        assert slide_layout._element.xml == xml("p:sldLayout/p:cSld/p:spTree")
+
+    @pytest.mark.parametrize(
+        ("prop_name", "sldLayout_cxml", "expected_cxml"),
+        [
+            (
+                "show_slide_number",
+                "p:sldLayout/(p:cSld/p:spTree,p:hf{sldNum=0})",
+                "p:sldLayout/(p:cSld/p:spTree,p:hf)",
+            ),
+            (
+                "show_footer",
+                "p:sldLayout/(p:cSld/p:spTree,p:hf{ftr=0})",
+                "p:sldLayout/(p:cSld/p:spTree,p:hf)",
+            ),
+            (
+                "show_date",
+                "p:sldLayout/(p:cSld/p:spTree,p:hf{dt=0})",
+                "p:sldLayout/(p:cSld/p:spTree,p:hf)",
+            ),
+            (
+                "show_header",
+                "p:sldLayout/(p:cSld/p:spTree,p:hf{hdr=0})",
+                "p:sldLayout/(p:cSld/p:spTree,p:hf)",
+            ),
+        ],
+    )
+    def it_setting_show_attr_True_when_hf_present_keeps_hf(
+        self, prop_name: str, sldLayout_cxml: str, expected_cxml: str
+    ):
+        slide_layout = SlideLayout(element(sldLayout_cxml), None)
+
+        setattr(slide_layout, prop_name, True)
+
+        assert slide_layout._element.xml == xml(expected_cxml)
+
     # fixtures -------------------------------------------------------
 
     @pytest.fixture(
@@ -941,6 +1276,72 @@ class DescribeSlideMaster(object):
         SlideLayouts_.assert_called_once_with(sldLayoutIdLst, slide_master)
         assert slide_layouts is slide_layouts_
 
+    @pytest.mark.parametrize(
+        "prop_name", ["show_slide_number", "show_footer", "show_date", "show_header"]
+    )
+    def it_knows_show_attrs_default_True_when_hf_absent(self, prop_name: str):
+        slide_master = SlideMaster(element("p:sldMaster/p:cSld/p:spTree"), None)
+        assert getattr(slide_master, prop_name) is True
+
+    @pytest.mark.parametrize(
+        ("prop_name", "sldMaster_cxml", "expected_value"),
+        [
+            ("show_slide_number", "p:sldMaster/(p:cSld/p:spTree,p:hf{sldNum=0})", False),
+            ("show_footer", "p:sldMaster/(p:cSld/p:spTree,p:hf{ftr=0})", False),
+            ("show_date", "p:sldMaster/(p:cSld/p:spTree,p:hf{dt=0})", False),
+            ("show_header", "p:sldMaster/(p:cSld/p:spTree,p:hf{hdr=0})", False),
+        ],
+    )
+    def it_knows_show_attrs_when_hf_present(
+        self, prop_name: str, sldMaster_cxml: str, expected_value: bool
+    ):
+        slide_master = SlideMaster(element(sldMaster_cxml), None)
+        assert getattr(slide_master, prop_name) is expected_value
+
+    @pytest.mark.parametrize(
+        ("prop_name", "expected_cxml"),
+        [
+            ("show_slide_number", "p:sldMaster/(p:cSld/p:spTree,p:hf{sldNum=0})"),
+            ("show_footer", "p:sldMaster/(p:cSld/p:spTree,p:hf{ftr=0})"),
+            ("show_date", "p:sldMaster/(p:cSld/p:spTree,p:hf{dt=0})"),
+            ("show_header", "p:sldMaster/(p:cSld/p:spTree,p:hf{hdr=0})"),
+        ],
+    )
+    def it_can_set_show_attr_False_creates_hf(self, prop_name: str, expected_cxml: str):
+        slide_master = SlideMaster(element("p:sldMaster/p:cSld/p:spTree"), None)
+
+        setattr(slide_master, prop_name, False)
+
+        assert slide_master._element.xml == xml(expected_cxml)
+
+    @pytest.mark.parametrize(
+        "prop_name", ["show_slide_number", "show_footer", "show_date", "show_header"]
+    )
+    def it_setting_show_attr_True_when_hf_absent_is_no_op(self, prop_name: str):
+        slide_master = SlideMaster(element("p:sldMaster/p:cSld/p:spTree"), None)
+
+        setattr(slide_master, prop_name, True)
+
+        assert slide_master._element.xml == xml("p:sldMaster/p:cSld/p:spTree")
+
+    @pytest.mark.parametrize(
+        ("prop_name", "sldMaster_cxml"),
+        [
+            ("show_slide_number", "p:sldMaster/(p:cSld/p:spTree,p:hf{sldNum=0})"),
+            ("show_footer", "p:sldMaster/(p:cSld/p:spTree,p:hf{ftr=0})"),
+            ("show_date", "p:sldMaster/(p:cSld/p:spTree,p:hf{dt=0})"),
+            ("show_header", "p:sldMaster/(p:cSld/p:spTree,p:hf{hdr=0})"),
+        ],
+    )
+    def it_setting_show_attr_True_when_hf_present_keeps_hf(
+        self, prop_name: str, sldMaster_cxml: str
+    ):
+        slide_master = SlideMaster(element(sldMaster_cxml), None)
+
+        setattr(slide_master, prop_name, True)
+
+        assert slide_master._element.xml == xml("p:sldMaster/(p:cSld/p:spTree,p:hf)")
+
     # fixtures -------------------------------------------------------
 
     @pytest.fixture
@@ -963,6 +1364,80 @@ class DescribeSlideMaster(object):
     @pytest.fixture
     def slide_layouts_(self, request):
         return instance_mock(request, SlideLayouts)
+
+
+class DescribeNotesMaster(object):
+    """Unit-test suite for `pptx.slide.NotesMaster` objects."""
+
+    def it_is_a_BaseMaster_subclass(self):
+        notes_master = NotesMaster(None, None)
+        assert isinstance(notes_master, _BaseMaster)
+
+    @pytest.mark.parametrize(
+        "prop_name", ["show_slide_number", "show_footer", "show_date", "show_header"]
+    )
+    def it_knows_show_attrs_default_True_when_hf_absent(self, prop_name: str):
+        notes_master = NotesMaster(element("p:notesMaster/p:cSld/p:spTree"), None)
+        assert getattr(notes_master, prop_name) is True
+
+    @pytest.mark.parametrize(
+        ("prop_name", "notesMaster_cxml", "expected_value"),
+        [
+            ("show_slide_number", "p:notesMaster/(p:cSld/p:spTree,p:hf{sldNum=0})", False),
+            ("show_footer", "p:notesMaster/(p:cSld/p:spTree,p:hf{ftr=0})", False),
+            ("show_date", "p:notesMaster/(p:cSld/p:spTree,p:hf{dt=0})", False),
+            ("show_header", "p:notesMaster/(p:cSld/p:spTree,p:hf{hdr=0})", False),
+        ],
+    )
+    def it_knows_show_attrs_when_hf_present(
+        self, prop_name: str, notesMaster_cxml: str, expected_value: bool
+    ):
+        notes_master = NotesMaster(element(notesMaster_cxml), None)
+        assert getattr(notes_master, prop_name) is expected_value
+
+    @pytest.mark.parametrize(
+        ("prop_name", "expected_cxml"),
+        [
+            ("show_slide_number", "p:notesMaster/(p:cSld/p:spTree,p:hf{sldNum=0})"),
+            ("show_footer", "p:notesMaster/(p:cSld/p:spTree,p:hf{ftr=0})"),
+            ("show_date", "p:notesMaster/(p:cSld/p:spTree,p:hf{dt=0})"),
+            ("show_header", "p:notesMaster/(p:cSld/p:spTree,p:hf{hdr=0})"),
+        ],
+    )
+    def it_can_set_show_attr_False_creates_hf(self, prop_name: str, expected_cxml: str):
+        notes_master = NotesMaster(element("p:notesMaster/p:cSld/p:spTree"), None)
+
+        setattr(notes_master, prop_name, False)
+
+        assert notes_master._element.xml == xml(expected_cxml)
+
+    @pytest.mark.parametrize(
+        "prop_name", ["show_slide_number", "show_footer", "show_date", "show_header"]
+    )
+    def it_setting_show_attr_True_when_hf_absent_is_no_op(self, prop_name: str):
+        notes_master = NotesMaster(element("p:notesMaster/p:cSld/p:spTree"), None)
+
+        setattr(notes_master, prop_name, True)
+
+        assert notes_master._element.xml == xml("p:notesMaster/p:cSld/p:spTree")
+
+    @pytest.mark.parametrize(
+        ("prop_name", "notesMaster_cxml"),
+        [
+            ("show_slide_number", "p:notesMaster/(p:cSld/p:spTree,p:hf{sldNum=0})"),
+            ("show_footer", "p:notesMaster/(p:cSld/p:spTree,p:hf{ftr=0})"),
+            ("show_date", "p:notesMaster/(p:cSld/p:spTree,p:hf{dt=0})"),
+            ("show_header", "p:notesMaster/(p:cSld/p:spTree,p:hf{hdr=0})"),
+        ],
+    )
+    def it_setting_show_attr_True_when_hf_present_keeps_hf(
+        self, prop_name: str, notesMaster_cxml: str
+    ):
+        notes_master = NotesMaster(element(notesMaster_cxml), None)
+
+        setattr(notes_master, prop_name, True)
+
+        assert notes_master._element.xml == xml("p:notesMaster/(p:cSld/p:spTree,p:hf)")
 
 
 class DescribeSlideMasters(object):

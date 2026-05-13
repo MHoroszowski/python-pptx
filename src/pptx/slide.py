@@ -24,15 +24,17 @@ if TYPE_CHECKING:
     from pptx.oxml.presentation import CT_SlideIdList, CT_SlideMasterIdList
     from pptx.oxml.slide import (
         CT_CommonSlideData,
+        CT_NotesMaster,
         CT_NotesSlide,
         CT_Slide,
+        CT_SlideLayout,
         CT_SlideLayoutIdList,
         CT_SlideMaster,
     )
     from pptx.parts.presentation import PresentationPart
     from pptx.parts.slide import SlideLayoutPart, SlideMasterPart, SlidePart
     from pptx.presentation import Presentation
-    from pptx.shapes.placeholder import LayoutPlaceholder, MasterPlaceholder
+    from pptx.shapes.placeholder import LayoutPlaceholder, MasterPlaceholder, SlidePlaceholder
     from pptx.shapes.shapetree import NotesSlidePlaceholder
     from pptx.text.text import TextFrame
 
@@ -92,7 +94,84 @@ class _BaseMaster(_BaseSlide):
         return MasterShapes(self._element.spTree, self)
 
 
-class NotesMaster(_BaseMaster):
+class _HeaderFooterVisibility:
+    """Provides access to header/footer visibility settings on a slide template."""
+
+    _element: CT_SlideLayout | CT_SlideMaster | CT_NotesMaster
+
+    def _get_hf_visibility(self, attr_name: str) -> bool:
+        """Return effective `attr_name` value, defaulting to |True| when `<p:hf>` is absent."""
+        hf = self._element.hf
+        return True if hf is None else getattr(hf, attr_name)
+
+    def _set_hf_visibility(self, attr_name: str, value: bool) -> None:
+        """Set `attr_name` on `<p:hf>`, creating the element only when needed.
+
+        Assigning |True| when `<p:hf>` is absent is a no-op because the effective default is
+        already |True|. An existing `<p:hf>` element is retained even when all values become
+        |True|, avoiding low-value XML churn.
+        """
+        hf = self._element.hf
+        if hf is None and value:
+            return
+        if hf is None:
+            hf = self._element.get_or_add_hf()
+        setattr(hf, attr_name, value)
+
+    @property
+    def show_slide_number(self) -> bool:
+        """`True` when slide numbers are shown for this template, `False` otherwise.
+
+        Assigning |False| creates a `<p:hf>` element when needed and writes `sldNum="0"`.
+        Assigning |True| preserves any existing `<p:hf>` element rather than removing it.
+        """
+        return self._get_hf_visibility("sldNum")
+
+    @show_slide_number.setter
+    def show_slide_number(self, value: bool) -> None:
+        self._set_hf_visibility("sldNum", value)
+
+    @property
+    def show_footer(self) -> bool:
+        """`True` when footer placeholders are shown for this template, `False` otherwise.
+
+        Assigning |False| creates a `<p:hf>` element when needed and writes `ftr="0"`.
+        Assigning |True| preserves any existing `<p:hf>` element rather than removing it.
+        """
+        return self._get_hf_visibility("ftr")
+
+    @show_footer.setter
+    def show_footer(self, value: bool) -> None:
+        self._set_hf_visibility("ftr", value)
+
+    @property
+    def show_date(self) -> bool:
+        """`True` when date placeholders are shown for this template, `False` otherwise.
+
+        Assigning |False| creates a `<p:hf>` element when needed and writes `dt="0"`.
+        Assigning |True| preserves any existing `<p:hf>` element rather than removing it.
+        """
+        return self._get_hf_visibility("dt")
+
+    @show_date.setter
+    def show_date(self, value: bool) -> None:
+        self._set_hf_visibility("dt", value)
+
+    @property
+    def show_header(self) -> bool:
+        """`True` when header placeholders are shown for this template, `False` otherwise.
+
+        Assigning |False| creates a `<p:hf>` element when needed and writes `hdr="0"`.
+        Assigning |True| preserves any existing `<p:hf>` element rather than removing it.
+        """
+        return self._get_hf_visibility("hdr")
+
+    @show_header.setter
+    def show_header(self, value: bool) -> None:
+        self._set_hf_visibility("hdr", value)
+
+
+class NotesMaster(_HeaderFooterVisibility, _BaseMaster):
     """Proxy for the notes master XML document.
 
     Provides access to shapes, the most commonly used of which are placeholders.
@@ -215,6 +294,33 @@ class Slide(_BaseSlide):
         return self.part.has_notes_slide
 
     @property
+    def has_date(self) -> bool:
+        """`True` if this slide has a date placeholder, `False` otherwise.
+
+        This property is non-mutating; it reports only whether a DATE placeholder is already
+        present on the slide.
+        """
+        return self._first_ph_of_type(PP_PLACEHOLDER.DATE) is not None
+
+    @property
+    def has_footer(self) -> bool:
+        """`True` if this slide has a footer placeholder, `False` otherwise.
+
+        This property is non-mutating; it reports only whether a FOOTER placeholder is already
+        present on the slide.
+        """
+        return self._first_ph_of_type(PP_PLACEHOLDER.FOOTER) is not None
+
+    @property
+    def has_slide_number(self) -> bool:
+        """`True` if this slide has a slide-number placeholder, `False` otherwise.
+
+        This property is non-mutating; it reports only whether a SLIDE_NUMBER placeholder is
+        already present on the slide.
+        """
+        return self._first_ph_of_type(PP_PLACEHOLDER.SLIDE_NUMBER) is not None
+
+    @property
     def notes_slide(self) -> NotesSlide:
         """The |NotesSlide| instance for this slide.
 
@@ -222,6 +328,60 @@ class Slide(_BaseSlide):
         returned on each call.
         """
         return self.part.notes_slide
+
+    @property
+    def date_text(self) -> str | None:
+        """Text of this slide's date placeholder, or |None| when no date placeholder is present.
+
+        Reading this property does not create a placeholder. An existing empty DATE placeholder
+        returns an empty string.
+        """
+        placeholder = self._first_ph_of_type(PP_PLACEHOLDER.DATE)
+        return None if placeholder is None else placeholder.text_frame.text
+
+    @date_text.setter
+    def date_text(self, value: str | None) -> None:
+        placeholder = self._first_ph_of_type(PP_PLACEHOLDER.DATE)
+        if value in (None, ""):
+            if placeholder is not None:
+                placeholder.text_frame.text = ""
+            return
+
+        if placeholder is None:
+            layout_ph = self._layout_ph_of_type(PP_PLACEHOLDER.DATE)
+            if layout_ph is None:
+                raise ValueError("slide layout has no DATE placeholder to clone from")
+            self.shapes.clone_placeholder(layout_ph)
+            placeholder = cast("SlidePlaceholder", self._first_ph_of_type(PP_PLACEHOLDER.DATE))
+
+        placeholder.text_frame.text = value
+
+    @property
+    def footer(self) -> str | None:
+        """Text of this slide's footer placeholder, or |None| when no footer placeholder is present.
+
+        Reading this property does not create a placeholder. An existing empty FOOTER placeholder
+        returns an empty string.
+        """
+        placeholder = self._first_ph_of_type(PP_PLACEHOLDER.FOOTER)
+        return None if placeholder is None else placeholder.text_frame.text
+
+    @footer.setter
+    def footer(self, value: str | None) -> None:
+        placeholder = self._first_ph_of_type(PP_PLACEHOLDER.FOOTER)
+        if value in (None, ""):
+            if placeholder is not None:
+                placeholder.text_frame.text = ""
+            return
+
+        if placeholder is None:
+            layout_ph = self._layout_ph_of_type(PP_PLACEHOLDER.FOOTER)
+            if layout_ph is None:
+                raise ValueError("slide layout has no FOOTER placeholder to clone from")
+            self.shapes.clone_placeholder(layout_ph)
+            placeholder = cast("SlidePlaceholder", self._first_ph_of_type(PP_PLACEHOLDER.FOOTER))
+
+        placeholder.text_frame.text = value
 
     @lazyproperty
     def placeholders(self) -> SlidePlaceholders:
@@ -246,6 +406,28 @@ class Slide(_BaseSlide):
     def slide_layout(self) -> SlideLayout:
         """|SlideLayout| object this slide inherits appearance from."""
         return self.part.slide_layout
+
+    def _first_ph_of_type(self, ph_type: PP_PLACEHOLDER) -> SlidePlaceholder | None:
+        """Return the first SlidePlaceholder of `ph_type` in document order, or |None|.
+
+        This helper is non-mutating and returns the first matching slide placeholder when multiple
+        placeholders of the same type are present.
+        """
+        for placeholder in self.placeholders:
+            if placeholder.placeholder_format.type == ph_type:
+                return placeholder
+        return None
+
+    def _layout_ph_of_type(self, ph_type: PP_PLACEHOLDER) -> LayoutPlaceholder | None:
+        """Return the first LayoutPlaceholder of `ph_type` on this slide's layout, or |None|.
+
+        The layout placeholder is used as the source when promoting a latent placeholder to a
+        slide-level placeholder on first write.
+        """
+        for placeholder in self.slide_layout.placeholders:
+            if placeholder.placeholder_format.type == ph_type:
+                return placeholder
+        return None
 
     def delete(self) -> None:
         """Remove this slide from its presentation.
@@ -426,7 +608,7 @@ class Slides(ParentedElementProxy):
         return new_slide_part.slide
 
 
-class SlideLayout(_BaseSlide):
+class SlideLayout(_HeaderFooterVisibility, _BaseSlide):
     """Slide layout object.
 
     Provides access to placeholders, regular shapes, and slide layout-level properties.
@@ -544,7 +726,7 @@ class SlideLayouts(ParentedElementProxy):
         slide_layout.slide_master.part.drop_rel(target_sldLayoutId.rId)
 
 
-class SlideMaster(_BaseMaster):
+class SlideMaster(_HeaderFooterVisibility, _BaseMaster):
     """Slide master object.
 
     Provides access to slide layouts. Access to placeholders, regular shapes, and slide master-level
