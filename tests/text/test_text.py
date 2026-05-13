@@ -902,6 +902,53 @@ class Describe_Paragraph(object):
             assert isinstance(r, _Run)
             assert r._parent == paragraph
 
+    def it_returns_an_empty_tuple_of_fields_when_paragraph_has_none(self):
+        paragraph = _Paragraph(element("a:p"), None)
+        assert paragraph.fields == ()
+
+    def it_provides_access_to_a_single_field(self):
+        paragraph = _Paragraph(element('a:p/a:fld{id=fld-1,type=slidenum}/a:t"sn"'), None)
+        fields = paragraph.fields
+        assert len(fields) == 1
+        assert isinstance(fields[0], _Field)
+        assert fields[0].type == "slidenum"
+        assert fields[0].text == "sn"
+
+    def it_yields_multiple_fields_in_document_order(self):
+        paragraph = _Paragraph(
+            element(
+                'a:p/(a:fld{id=fld-1,type=slidenum}/a:t"sn",a:fld{id=fld-2,type=datetime1}/a:t"date")'
+            ),
+            None,
+        )
+        fields = paragraph.fields
+        assert tuple(f.type for f in fields) == ("slidenum", "datetime1")
+        assert tuple(f.text for f in fields) == ("sn", "date")
+
+    def it_chains_each_field_parent_back_to_the_paragraph(self):
+        paragraph = _Paragraph(element('a:p/(a:fld{id=fld-1}/a:t"a",a:fld{id=fld-2}/a:t"b")'), None)
+        for f in paragraph.fields:
+            assert f._parent is paragraph
+
+    def it_returns_a_tuple_not_a_list(self):
+        paragraph = _Paragraph(element("a:p/a:fld{id=fld-1}"), None)
+        assert isinstance(paragraph.fields, tuple)
+
+    def it_keeps_runs_field_free_on_mixed_paragraphs(self):
+        # ---a:r and a:fld interleaved: .runs yields only _Run, .fields yields only _Field
+        paragraph = _Paragraph(
+            element('a:p/(a:r/a:t"head",a:fld{id=fld-1,type=slidenum}/a:t"sn",a:r/a:t"tail")'),
+            None,
+        )
+        runs = paragraph.runs
+        fields = paragraph.fields
+        assert len(runs) == 2
+        assert tuple(r.text for r in runs) == ("head", "tail")
+        assert all(isinstance(r, _Run) for r in runs)
+        assert len(fields) == 1
+        assert fields[0].type == "slidenum"
+        assert isinstance(fields[0], _Field)
+
     def it_knows_its_space_after(self, after_get_fixture):
         paragraph, expected_value = after_get_fixture
         assert paragraph.space_after == expected_value
