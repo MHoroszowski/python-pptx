@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, cast
 
 import pytest
@@ -14,7 +15,7 @@ from pptx.enum.text import MSO_ANCHOR, MSO_AUTO_SIZE, MSO_UNDERLINE, PP_ALIGN, P
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.opc.package import XmlPart
 from pptx.shapes.autoshape import Shape
-from pptx.text.text import Font, TextFrame, _Hyperlink, _Paragraph, _Run
+from pptx.text.text import Font, TextFrame, _Field, _Hyperlink, _Paragraph, _Run
 from pptx.util import Inches, Pt
 
 from ..oxml.unitdata.text import a_p, a_t, an_hlinkClick, an_r, an_rPr
@@ -1270,3 +1271,97 @@ class Describe_Run(object):
     @pytest.fixture
     def hlink_(self, request):
         return instance_mock(request, _Hyperlink)
+
+
+class Describe_Field(object):
+    """Unit-test suite for `pptx.text.text._Field` object."""
+
+    def it_provides_access_to_its_font(self, request):
+        fld = element("a:fld{id=fld-1}/a:rPr")
+        rPr = fld.rPr
+        font_ = instance_mock(request, Font)
+        Font_ = class_mock(request, "pptx.text.text.Font", return_value=font_)
+        field = _Field(fld, None)
+
+        font = field.font
+
+        Font_.assert_called_once_with(rPr)
+        assert font is font_
+
+    def it_can_get_the_text_of_the_field(self):
+        fld = element('a:fld{id=fld-1}/a:t"slidenum"')
+        field = _Field(fld, None)
+        assert field.text == "slidenum"
+        assert isinstance(field.text, str)
+
+    def it_returns_empty_string_when_field_has_no_a_t(self):
+        fld = element("a:fld{id=fld-1}")
+        field = _Field(fld, None)
+        assert field.text == ""
+
+    @pytest.mark.parametrize(
+        ("fld_cxml", "new_value", "expected_fld_cxml"),
+        [
+            ("a:fld{id=fld-1}/a:t", "barfoo", 'a:fld{id=fld-1}/a:t"barfoo"'),
+            ("a:fld{id=fld-1}/a:t", "bar\x1bfoo", 'a:fld{id=fld-1}/a:t"bar_x001B_foo"'),
+            ("a:fld{id=fld-1}/a:t", "bar\tfoo", 'a:fld{id=fld-1}/a:t"bar\tfoo"'),
+        ],
+    )
+    def it_can_change_its_text(self, fld_cxml, new_value, expected_fld_cxml):
+        field = _Field(element(fld_cxml), None)
+        field.text = new_value
+        assert field._f.xml == xml(expected_fld_cxml)
+
+    def it_can_get_its_type(self):
+        fld = element("a:fld{id=fld-1,type=slidenum}")
+        assert _Field(fld, None).type == "slidenum"
+
+    def it_returns_None_for_type_when_attribute_absent(self):
+        fld = element("a:fld{id=fld-1}")
+        assert _Field(fld, None).type is None
+
+    def it_can_change_its_type(self):
+        fld = element("a:fld{id=fld-1}")
+        field = _Field(fld, None)
+        field.type = "datetime1"
+        assert fld.get("type") == "datetime1"
+
+    def it_clears_type_when_set_to_None(self):
+        fld = element("a:fld{id=fld-1,type=slidenum}")
+        field = _Field(fld, None)
+        field.type = None
+        assert fld.get("type") is None
+
+
+class Describe_Paragraph_add_field(object):
+    """Unit-test suite for `pptx.text.text._Paragraph.add_field`."""
+
+    def it_returns_a__Field_with_a_GUID_id(self):
+        p = element("a:p")
+        paragraph = _Paragraph(p, None)
+
+        field = paragraph.add_field()
+
+        assert isinstance(field, _Field)
+        assert re.match(
+            r"^\{[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\}$",
+            field._f.id,
+        )
+
+    def it_assigns_distinct_ids_to_consecutive_fields(self):
+        paragraph = _Paragraph(element("a:p"), None)
+        first = paragraph.add_field()
+        second = paragraph.add_field()
+        assert first._f.id != second._f.id
+
+    def it_appends_the_fld_after_existing_runs(self):
+        paragraph = _Paragraph(element('a:p/a:r/a:t"head"'), None)
+        paragraph.add_field()
+        children = list(paragraph._p)
+        assert children[0].tag.endswith("}r")
+        assert children[1].tag.endswith("}fld")
+
+    def it_chains_parent_back_to_the_paragraph(self):
+        paragraph = _Paragraph(element("a:p"), None)
+        field = paragraph.add_field()
+        assert field._parent is paragraph

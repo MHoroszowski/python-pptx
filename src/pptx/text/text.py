@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import TYPE_CHECKING, Iterator, cast
 
 from pptx.dml.fill import FillFormat
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
         CT_RegularTextRun,
         CT_TextBody,
         CT_TextCharacterProperties,
+        CT_TextField,
         CT_TextParagraph,
         CT_TextParagraphProperties,
     )
@@ -582,6 +584,21 @@ class _Paragraph(Subshape):
         r = self._p.add_r()
         return _Run(r, self)
 
+    def add_field(self) -> _Field:
+        """Return a new |_Field| appended after the paragraph's existing content.
+
+        The new ``<a:fld>`` element is given a fresh RFC-4122 v4 GUID `id`
+        wrapped in braces, with uppercase hex — matching the authoring format
+        PowerPoint emits when the user runs *Insert → Slide Number* or
+        *Insert → Date and Time*. The caller is expected to set `type` (e.g.
+        `"slidenum"`, `"datetime1"`) and optionally `text` (the placeholder
+        glyph PowerPoint displays for the field before it resolves the live
+        value) on the returned `_Field`.
+        """
+        f = self._p._add_fld()
+        f.id = "{%s}" % str(uuid.uuid4()).upper()
+        return _Field(f, self)
+
     @property
     def alignment(self) -> PP_PARAGRAPH_ALIGNMENT | None:
         """Horizontal alignment of this paragraph.
@@ -888,3 +905,62 @@ class _Run(Subshape):
     @text.setter
     def text(self, text: str):
         self._r.text = text
+
+
+class _Field(Subshape):
+    """Field object. Corresponds to ``<a:fld>`` child element in a paragraph.
+
+    A field renders text whose value PowerPoint resolves at slide-show or open
+    time — slide numbers, the current date, the slide title, etc. The literal
+    text written to the ``<a:t>`` child is the placeholder PowerPoint shows
+    before it resolves the live value; users typically pass a glyph like
+    ``"‹#›"`` for slide numbers or the current date as a static fallback.
+
+    Not intended to be constructed directly — obtain instances from
+    :meth:`_Paragraph.add_field`.
+    """
+
+    def __init__(self, f: CT_TextField, parent: ProvidesPart):
+        super(_Field, self).__init__(parent)
+        self._f = f
+
+    @property
+    def font(self) -> Font:
+        """|Font| instance for the run-level character properties of this field.
+
+        Character properties can be and perhaps most often are inherited from
+        parent objects such as the paragraph and slide layout the field is
+        contained in. Only those specifically overridden at the field level
+        are contained in the font object.
+        """
+        rPr = self._f.get_or_add_rPr()
+        return Font(rPr)
+
+    @property
+    def text(self) -> str:
+        """Read/write. A unicode string containing the field's placeholder text.
+
+        Assignment replaces all text in the field. Control characters other
+        than tab or newline are escaped as a hex representation. For example,
+        ESC (ASCII 27) is escaped as ``"_x001B_"``.
+        """
+        return self._f.text
+
+    @text.setter
+    def text(self, text: str):
+        self._f.text = text
+
+    @property
+    def type(self) -> str | None:
+        """Read/write. The field's ``type`` attribute, e.g. ``"slidenum"``.
+
+        ECMA-376 §A.4.1 names the well-known types: ``slidenum``,
+        ``datetime1`` .. ``datetime13``, and ``title``. The OOXML schema
+        itself treats the value as a permissive string. Returns |None| when
+        no ``type`` attribute is present.
+        """
+        return self._f.type
+
+    @type.setter
+    def type(self, value: str | None):
+        self._f.type = value
