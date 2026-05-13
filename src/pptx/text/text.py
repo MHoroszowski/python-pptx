@@ -779,6 +779,17 @@ class _Paragraph(Subshape):
         return tuple(_Run(r, self) for r in self._element.r_lst)
 
     @property
+    def fields(self) -> tuple[_Field, ...]:
+        """Sequence of fields in this paragraph in document order.
+
+        Mirrors :attr:`runs` but yields :class:`_Field` instances wrapping each
+        ``<a:fld>`` child element. Useful for discovering existing slide-number,
+        date, and other PowerPoint-resolved fields in a deck — `.runs` deliberately
+        excludes fields so that pre-existing iteration semantics stay intact.
+        """
+        return tuple(_Field(f, self) for f in self._element.fld_lst)
+
+    @property
     def space_after(self) -> Length | None:
         """The spacing to appear between this paragraph and the subsequent paragraph.
 
