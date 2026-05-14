@@ -45,10 +45,24 @@ Reference `git log 253dbc87 --format=%B -n1` for the canonical shape: scope, des
 1. `git checkout -b feature/<slug>` off master
 2. Implement → test → ruff → commit
 3. Drop a `uat_<slug>.py` at the repo root (untracked) — small Python script that builds a `.pptx` exercising the new API and prints a round-trip read-back. PR #30 used this for issue #17 review.
-4. The maintainer runs the UAT, opens the `.pptx` in PowerPoint or Keynote, and gives signoff.
+4. **The maintainer runs the UAT.** Opens the `.pptx` in PowerPoint or Keynote, gives signoff.
 5. Then push the branch and open a PR.
 
 **Automated runs must not push or open PRs without maintainer approval.** The approval-gated UAT step is the rule, not a suggestion.
+
+### 6a. UAT signoff is maintainer-only — HARD RULE for AI agents
+
+**AI agents may execute the UAT script to verify the script itself is functional, but `PASS` from the script does NOT constitute signoff.** Signoff requires a human opening the generated `.pptx` in PowerPoint or Keynote and visually confirming behavior. Unless the maintainer has explicitly delegated signoff in a specific case, the agent does not claim UAT acceptance.
+
+Concretely:
+- Agents **author** the UAT script (it's part of the deliverable per §6.3).
+- Agents **may run** the UAT — once, after the §7 trinity is green — to verify the script doesn't crash, exits non-zero on failure, and actually asserts what it claims to assert. This is QA on the test itself, not acceptance of the feature.
+- Agents **must not report or imply UAT signoff** in commit messages, PR bodies, or summaries. Acceptable: *"UAT script runs clean — pending maintainer visual signoff in PowerPoint/Keynote."* Not acceptable: *"UAT: PASS — round-trip confirmed."*
+- The §7 reporting trinity below (pytest + ruff + behave) is the agent's full self-verification surface. UAT execution output may be included as an attachment but it is **not** the fourth gate.
+- Round-trip / behavioral evidence within agent-runnable scope still goes through **pytest integration tests** that exercise save+reopen. If pytest can fully cover it, the UAT is just a maintainer convenience; if pytest can't, UAT becomes the maintainer's primary acceptance path.
+- If unsure whether the maintainer has delegated signoff for a particular case, the agent **stops and asks**.
+
+Why: the `.pptx` rendering in PowerPoint or Keynote is the actual acceptance surface — agents can't open it, and a green script exit only proves byte-level round-tripping, not visual correctness. Claiming "UAT PASS" in a summary creates false-confidence pressure to merge; the explicit signoff-vs-execution split removes that pressure.
 
 ## 7. AI agent reporting contract
 
@@ -61,3 +75,5 @@ python3 -m behave features/ --no-color 2>&1 | tail -3
 ```
 
 Pasted verbatim. If any shows a failure, the agent stops there and reports `verification-failed` rather than committing. Self-attestation ("tests pass") without the captured output is not acceptable — too easy to skip the actual run and inherit a false sense of done.
+
+**UAT output is NOT part of this trinity.** Per §6a, agents do not run the UAT. The maintainer runs it after seeing the trinity is green and reviewing the diff.
