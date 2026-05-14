@@ -149,16 +149,24 @@ class CT_GroupShape(BaseShapeElement):
 
     @property
     def max_shape_id(self) -> int:
-        """Maximum int value assigned as @id in this slide.
+        """Maximum int value assigned as @id within this shape tree.
 
-        This is generally a shape-id, but ids can be assigned to other
-        objects so we just check all @id values anywhere in the document
-        (XML id-values have document scope).
+        This is the maximum @id value on any descendant of this `<p:spTree>` (or
+        `<p:grpSp>`) element. Scoped strictly to the shape tree because OOXML
+        uses sibling element-types (notably `<p:sldLayoutIdLst>/<p:sldLayoutId>`
+        on a slide master) whose `@id` values live in a deliberately-segregated
+        namespace starting at 2147483649. Pulling those values into this max
+        would push the next shape id beyond `xs:int`, which PowerPoint quarantines
+        on open ("Repair", with the offending shape removed).
 
-        In practice, its minimum value is 1 because the spTree element itself
-        is always assigned id="1".
+        In practice the minimum return is 1 because the spTree element itself is
+        always assigned `id="1"`.
         """
-        id_str_lst = self.xpath("//@id")
+        # ---`.//@id` (not `//@id`) — `//` is absolute in XPath and scopes to the
+        #    whole document, picking up sibling-element ids that share neither the
+        #    semantic namespace nor the id range with shape ids. See the docstring
+        #    for the failure mode that surfaced via SlideMaster.add_text_watermark.
+        id_str_lst = self.xpath(".//@id")
         used_ids = [int(id_str) for id_str in id_str_lst if id_str.isdigit()]
         return max(used_ids) if used_ids else 0
 
