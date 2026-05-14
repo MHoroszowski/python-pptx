@@ -88,6 +88,41 @@ class DescribeCT_GroupShape(object):
         x, y, cx, cy = xSp._child_extents
         assert (x, y, cx, cy) == expected_values
 
+    def it_returns_zero_for_max_shape_id_on_an_empty_spTree(self):
+        spTree = element("p:spTree")
+        assert spTree.max_shape_id == 0
+
+    def it_finds_the_max_id_among_shape_descendants(self):
+        spTree = element(
+            "p:spTree/(p:nvGrpSpPr/p:cNvPr{id=1,name=root}"
+            ",p:sp/p:nvSpPr/p:cNvPr{id=2,name=a}"
+            ",p:sp/p:nvSpPr/p:cNvPr{id=42,name=b}"
+            ",p:sp/p:nvSpPr/p:cNvPr{id=7,name=c})"
+        )
+        assert spTree.max_shape_id == 42
+
+    def but_it_ignores_sibling_ids_outside_the_shape_tree(self):
+        # ---Regression for the slide-master shape-id-overflow bug surfaced by
+        #    SlideMaster.add_text_watermark: `<p:sldLayoutIdLst>` lives as a
+        #    sibling of `<p:cSld>` on a slide master and uses sentinel ids
+        #    starting at 2147483649. A whole-document xpath would pull those
+        #    values in and push the next shape id past `xs:int`, which
+        #    PowerPoint quarantines on open ("Repair" path).
+        sldMaster = element(
+            "p:sldMaster/(p:cSld/p:spTree/(p:nvGrpSpPr/p:cNvPr{id=1,name=root}"
+            ",p:sp/p:nvSpPr/p:cNvPr{id=2,name=title})"
+            ",p:sldLayoutIdLst/(p:sldLayoutId{id=2147483649,r:id=rId1}"
+            ",p:sldLayoutId{id=2147483650,r:id=rId2}))"
+        )
+        spTree = sldMaster.find(
+            "{http://schemas.openxmlformats.org/presentationml/2006/main}cSld/"
+            "{http://schemas.openxmlformats.org/presentationml/2006/main}spTree"
+        )
+        # ---scoped to spTree descendants; 2147483649 etc. are NOT counted---
+        assert spTree.max_shape_id == 2
+        # ---and `_next_shape_id` (max + 1) stays in the safe shape-id range---
+        assert spTree.max_shape_id + 1 == 3
+
     # fixtures ---------------------------------------------
 
     @pytest.fixture
