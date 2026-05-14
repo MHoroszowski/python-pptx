@@ -831,6 +831,13 @@ class MasterShapes(_BaseShapes):
     Supports indexed access, len(), and iteration.
     """
 
+    def add_textbox(self, left: Length, top: Length, width: Length, height: Length) -> Shape:
+        """Return newly added text box shape appended to this master shape tree."""
+        shape_id = self._next_shape_id
+        name = "TextBox %d" % (shape_id - 1)
+        sp = self._spTree.add_textbox(shape_id, name, left, top, width, height)
+        return cast(Shape, self._shape_factory(sp))
+
     def _shape_factory(self, shape_elm: ShapeElement) -> BaseShape:
         """Return an instance of the appropriate shape proxy class for `shape_elm`."""
         return _MasterShapeFactory(shape_elm, self)

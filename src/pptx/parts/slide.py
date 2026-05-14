@@ -19,7 +19,7 @@ from pptx.oxml.theme import CT_OfficeStyleSheet
 from pptx.parts.chart import ChartPart
 from pptx.parts.embeddedpackage import EmbeddedPackagePart
 from pptx.parts.image import Image, ImagePart
-from pptx.slide import NotesMaster, NotesSlide, Slide, SlideLayout, SlideMaster
+from pptx.slide import HandoutMaster, NotesMaster, NotesSlide, Slide, SlideLayout, SlideMaster
 from pptx.util import lazyproperty
 
 if TYPE_CHECKING:
@@ -112,6 +112,20 @@ class NotesMasterPart(BaseSlidePart):
             package,
             CT_OfficeStyleSheet.new_default(),
         )
+
+
+class HandoutMasterPart(BaseSlidePart):
+    """Handout master part.
+
+    Corresponds to package file `ppt/handoutMasters/handoutMaster1.xml` when present.
+    Auto-create is deliberately deferred until this fork ships a built-in handout-master
+    template and theme wiring.
+    """
+
+    @lazyproperty
+    def handout_master(self):
+        """Return the |HandoutMaster| object that proxies this handout master part."""
+        return HandoutMaster(self._element, self)
 
 
 class NotesSlidePart(BaseSlidePart):

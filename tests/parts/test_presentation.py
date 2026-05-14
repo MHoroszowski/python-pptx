@@ -9,9 +9,9 @@ from pptx.opc.packuri import PackURI
 from pptx.package import Package
 from pptx.parts.coreprops import CorePropertiesPart
 from pptx.parts.presentation import PresentationPart
-from pptx.parts.slide import NotesMasterPart, SlideMasterPart, SlidePart
+from pptx.parts.slide import HandoutMasterPart, NotesMasterPart, SlideMasterPart, SlidePart
 from pptx.presentation import Presentation
-from pptx.slide import NotesMaster, Slide, SlideLayout, SlideMaster
+from pptx.slide import HandoutMaster, NotesMaster, Slide, SlideLayout, SlideMaster
 
 from ..unitutil.cxml import element
 from ..unitutil.mock import call, class_mock, instance_mock, method_mock, property_mock
@@ -85,6 +85,40 @@ class DescribePresentationPart(object):
         prs_part = PresentationPart(None, None, None, None)
 
         assert prs_part.notes_master is notes_master_
+
+    def it_provides_access_to_an_existing_handout_master_part(
+        self, handout_master_part_, part_related_by_
+    ):
+        prs_part = PresentationPart(None, None, None, None)
+        part_related_by_.return_value = handout_master_part_
+
+        handout_master_part = prs_part.handout_master_part
+
+        prs_part.part_related_by.assert_called_once_with(prs_part, RT.HANDOUT_MASTER)
+        assert handout_master_part is handout_master_part_
+
+    def but_it_raises_ValueError_when_no_handout_master_is_present(self, part_related_by_):
+        missing_rel = KeyError("rId99")
+        part_related_by_.side_effect = missing_rel
+        prs_part = PresentationPart(None, None, None, None)
+
+        with pytest.raises(ValueError, match="no handout master") as exc_info:
+            prs_part.handout_master_part
+
+        assert exc_info.value.__cause__ is missing_rel
+
+    def it_provides_access_to_its_handout_master(self, request, handout_master_part_):
+        handout_master_ = instance_mock(request, HandoutMaster)
+        property_mock(
+            request,
+            PresentationPart,
+            "handout_master_part",
+            return_value=handout_master_part_,
+        )
+        handout_master_part_.handout_master = handout_master_
+        prs_part = PresentationPart(None, None, None, None)
+
+        assert prs_part.handout_master is handout_master_
 
     def it_provides_access_to_a_related_slide(self, request, slide_, related_part_):
         slide_part_ = instance_mock(request, SlidePart, slide=slide_)
@@ -191,6 +225,10 @@ class DescribePresentationPart(object):
         assert prs_part._next_slide_partname == PackURI("/ppt/slides/slide3.xml")
 
     # fixture components ---------------------------------------------
+
+    @pytest.fixture
+    def handout_master_part_(self, request):
+        return instance_mock(request, HandoutMasterPart)
 
     @pytest.fixture
     def notes_master_part_(self, request):

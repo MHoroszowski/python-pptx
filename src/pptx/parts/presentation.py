@@ -7,7 +7,7 @@ from typing import IO, TYPE_CHECKING, Iterable
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.opc.package import XmlPart
 from pptx.opc.packuri import PackURI
-from pptx.parts.slide import NotesMasterPart, SlidePart
+from pptx.parts.slide import HandoutMasterPart, NotesMasterPart, SlidePart
 from pptx.presentation import Presentation
 from pptx.util import lazyproperty
 
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from pptx.custom_properties import CustomProperties
     from pptx.custom_xml import CustomXmlParts
     from pptx.parts.coreprops import CorePropertiesPart
-    from pptx.slide import NotesMaster, Slide, SlideLayout, SlideMaster
+    from pptx.slide import HandoutMaster, NotesMaster, Slide, SlideLayout, SlideMaster
 
 
 class PresentationPart(XmlPart):
@@ -100,6 +100,30 @@ class PresentationPart(XmlPart):
             notes_master_part = NotesMasterPart.create_default(self.package)
             self.relate_to(notes_master_part, RT.NOTES_MASTER)
             return notes_master_part
+
+    @lazyproperty
+    def handout_master(self) -> HandoutMaster:
+        """Return the |HandoutMaster| object for this presentation.
+
+        Raises |ValueError| when the presentation has no handout master because auto-create is
+        deliberately deferred until a built-in handout-master template ships in this fork.
+        """
+        return self.handout_master_part.handout_master
+
+    @lazyproperty
+    def handout_master_part(self) -> HandoutMasterPart:
+        """Return the |HandoutMasterPart| object for this presentation.
+
+        Raises |ValueError| when the presentation has no handout master because auto-create is
+        deliberately deferred until a built-in handout-master template ships in this fork.
+        """
+        try:
+            return self.part_related_by(RT.HANDOUT_MASTER)
+        except KeyError as e:
+            raise ValueError(
+                "presentation has no handout master; auto-create is deferred because no "
+                "handout master template ships in this fork yet"
+            ) from e
 
     @lazyproperty
     def presentation(self):
