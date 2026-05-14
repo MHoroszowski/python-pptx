@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Iterator, cast
 
+from pptx.dml.color import RGBColor
 from pptx.dml.fill import FillFormat
 from pptx.enum.shapes import PP_PLACEHOLDER
+from pptx.enum.text import PP_ALIGN
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.shapes.shapetree import (
     LayoutPlaceholders,
@@ -18,12 +20,13 @@ from pptx.shapes.shapetree import (
     SlideShapes,
 )
 from pptx.shared import ElementProxy, ParentedElementProxy, PartElementProxy
-from pptx.util import lazyproperty
+from pptx.util import Inches, Length, Pt, lazyproperty
 
 if TYPE_CHECKING:
     from pptx.oxml.presentation import CT_SlideIdList, CT_SlideMasterIdList
     from pptx.oxml.slide import (
         CT_CommonSlideData,
+        CT_HandoutMaster,
         CT_NotesMaster,
         CT_NotesSlide,
         CT_Slide,
@@ -34,6 +37,7 @@ if TYPE_CHECKING:
     from pptx.parts.presentation import PresentationPart
     from pptx.parts.slide import SlideLayoutPart, SlideMasterPart, SlidePart
     from pptx.presentation import Presentation
+    from pptx.shapes.autoshape import Shape
     from pptx.shapes.placeholder import LayoutPlaceholder, MasterPlaceholder, SlidePlaceholder
     from pptx.shapes.shapetree import NotesSlidePlaceholder
     from pptx.text.text import TextFrame
@@ -97,7 +101,7 @@ class _BaseMaster(_BaseSlide):
 class _HeaderFooterVisibility:
     """Provides access to header/footer visibility settings on a slide template."""
 
-    _element: CT_SlideLayout | CT_SlideMaster | CT_NotesMaster
+    _element: CT_SlideLayout | CT_SlideMaster | CT_NotesMaster | CT_HandoutMaster
 
     def _get_hf_visibility(self, attr_name: str) -> bool:
         """Return effective `attr_name` value, defaulting to |True| when `<p:hf>` is absent."""
@@ -175,6 +179,15 @@ class NotesMaster(_HeaderFooterVisibility, _BaseMaster):
     """Proxy for the notes master XML document.
 
     Provides access to shapes, the most commonly used of which are placeholders.
+    """
+
+
+class HandoutMaster(_HeaderFooterVisibility, _BaseMaster):
+    """Proxy for the handout master XML document.
+
+    Provides access to shapes and header/footer visibility settings when a deck already
+    contains a handout master. Auto-create is deliberately deferred until a built-in
+    `handoutMaster.xml` template ships in this fork.
     """
 
 
@@ -734,6 +747,39 @@ class SlideMaster(_HeaderFooterVisibility, _BaseMaster):
     """
 
     _element: CT_SlideMaster  # pyright: ignore[reportIncompatibleVariableOverride]
+
+    def add_text_watermark(
+        self,
+        text: str,
+        *,
+        font_size: Length = Pt(72),
+        transparency: float = 0.7,
+        font_name: str = "Calibri",
+    ) -> Shape:
+        """Add and return a centered watermark textbox on this slide master.
+
+        The watermark is a large mid-gray text box sized for the standard 10in x 7.5in
+        slide canvas. `transparency` is applied to the run's solid font fill.
+        """
+        slide_width = Inches(10)
+        slide_height = Inches(7.5)
+        textbox_width = Inches(6)
+        textbox_height = Inches(1.5)
+        # ---center a 6in x 1.5in textbox on a standard 10in x 7.5in slide---
+        left = (slide_width - textbox_width) // 2
+        top = (slide_height - textbox_height) // 2
+
+        shape = self.shapes.add_textbox(left, top, textbox_width, textbox_height)
+        paragraph = shape.text_frame.paragraphs[0]
+        paragraph.text = text
+        paragraph.alignment = PP_ALIGN.CENTER
+        run = paragraph.runs[0]
+        run.font.name = font_name
+        run.font.size = font_size
+        run.font.fill.solid()
+        run.font.fill.fore_color.rgb = RGBColor(0x80, 0x80, 0x80)
+        run.font.fill.transparency = transparency
+        return shape
 
     @lazyproperty
     def slide_layouts(self) -> SlideLayouts:

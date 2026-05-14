@@ -9,12 +9,15 @@ from io import BytesIO
 import pytest
 
 from pptx import Presentation as PresentationFactory
+from pptx.dml.color import RGBColor
 from pptx.dml.fill import FillFormat
 from pptx.enum.shapes import PP_PLACEHOLDER
+from pptx.enum.text import PP_ALIGN
 from pptx.package import Package
 from pptx.parts.presentation import PresentationPart
 from pptx.parts.slide import SlideLayoutPart, SlideMasterPart, SlidePart
 from pptx.presentation import Presentation
+from pptx.shapes.autoshape import Shape
 from pptx.shapes.base import BaseShape
 from pptx.shapes.placeholder import LayoutPlaceholder, NotesSlidePlaceholder, SlidePlaceholder
 from pptx.shapes.shapetree import (
@@ -28,6 +31,7 @@ from pptx.shapes.shapetree import (
     SlideShapes,
 )
 from pptx.slide import (
+    HandoutMaster,
     NotesMaster,
     NotesSlide,
     Slide,
@@ -39,8 +43,10 @@ from pptx.slide import (
     _Background,
     _BaseMaster,
     _BaseSlide,
+    _HeaderFooterVisibility,
 )
 from pptx.text.text import TextFrame
+from pptx.util import Inches, Pt
 
 from .unitutil.cxml import element, xml
 from .unitutil.mock import call, class_mock, instance_mock, method_mock, property_mock
@@ -1438,6 +1444,96 @@ class DescribeNotesMaster(object):
         setattr(notes_master, prop_name, True)
 
         assert notes_master._element.xml == xml("p:notesMaster/(p:cSld/p:spTree,p:hf)")
+
+
+class DescribeHandoutMaster(object):
+    """Unit-test suite for `pptx.slide.HandoutMaster` objects."""
+
+    def it_has_the_expected_mro(self):
+        assert HandoutMaster.__mro__[:3] == (HandoutMaster, _HeaderFooterVisibility, _BaseMaster)
+
+    def it_knows_show_slide_number_default_True_when_hf_absent(self):
+        handout_master = HandoutMaster(element("p:handoutMaster/p:cSld/p:spTree"), None)
+        assert handout_master.show_slide_number is True
+
+    def it_can_set_show_footer_False_creates_hf(self):
+        handout_master = HandoutMaster(element("p:handoutMaster/p:cSld/p:spTree"), None)
+
+        handout_master.show_footer = False
+
+        assert handout_master._element.xml == xml("p:handoutMaster/(p:cSld/p:spTree,p:hf{ftr=0})")
+
+    @pytest.mark.parametrize(
+        ("prop_name", "handoutMaster_cxml", "expected_value"),
+        [
+            ("show_slide_number", "p:handoutMaster/(p:cSld/p:spTree,p:hf{sldNum=0})", False),
+            ("show_footer", "p:handoutMaster/(p:cSld/p:spTree,p:hf{ftr=0})", False),
+            ("show_date", "p:handoutMaster/(p:cSld/p:spTree,p:hf{dt=0})", False),
+            ("show_header", "p:handoutMaster/(p:cSld/p:spTree,p:hf{hdr=0})", False),
+        ],
+    )
+    def it_round_trips_show_attrs_via_hf(
+        self, prop_name: str, handoutMaster_cxml: str, expected_value: bool
+    ):
+        handout_master = HandoutMaster(element(handoutMaster_cxml), None)
+
+        assert getattr(handout_master, prop_name) is expected_value
+
+        setattr(handout_master, prop_name, True)
+
+        assert getattr(handout_master, prop_name) is True
+
+
+class DescribeSlideMasterAddTextWatermark(object):
+    """Unit-test suite for `SlideMaster.add_text_watermark()`."""
+
+    def it_returns_the_new_textbox_shape(self):
+        prs = PresentationFactory()
+        slide_master = prs.slide_masters[0]
+
+        shape = slide_master.add_text_watermark("DRAFT")
+
+        assert isinstance(shape, Shape)
+
+    def it_sets_the_watermark_text_and_paragraph_alignment(self):
+        prs = PresentationFactory()
+        slide_master = prs.slide_masters[0]
+
+        shape = slide_master.add_text_watermark("DRAFT")
+
+        paragraph = shape.text_frame.paragraphs[0]
+        assert shape.text_frame.text == "DRAFT"
+        assert paragraph.alignment == PP_ALIGN.CENTER
+
+    def it_applies_font_name_size_color_and_transparency_to_the_first_run(self):
+        prs = PresentationFactory()
+        slide_master = prs.slide_masters[0]
+
+        shape = slide_master.add_text_watermark(
+            "DRAFT", font_size=Pt(54), transparency=0.4, font_name="Aptos"
+        )
+
+        run = shape.text_frame.paragraphs[0].runs[0]
+        assert run.font.name == "Aptos"
+        assert run.font.size == Pt(54)
+        assert run.font.fill.fore_color.rgb == RGBColor(0x80, 0x80, 0x80)
+        assert run.font.fill.transparency == pytest.approx(0.4)
+
+    def it_adds_a_centered_textbox_reachable_via_master_shapes(self):
+        prs = PresentationFactory()
+        slide_master = prs.slide_masters[0]
+        initial_count = len(slide_master.shapes)
+
+        shape = slide_master.add_text_watermark("DRAFT")
+
+        assert len(slide_master.shapes) == initial_count + 1
+        assert slide_master.shapes[-1].element is shape.element
+        assert (shape.left, shape.top, shape.width, shape.height) == (
+            Inches(2),
+            Inches(3),
+            Inches(6),
+            Inches(1.5),
+        )
 
 
 class DescribeSlideMasters(object):

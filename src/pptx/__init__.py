@@ -17,6 +17,7 @@ from pptx.parts.image import ImagePart
 from pptx.parts.media import MediaPart
 from pptx.parts.presentation import PresentationPart
 from pptx.parts.slide import (
+    HandoutMasterPart,
     NotesMasterPart,
     NotesSlidePart,
     SlideLayoutPart,
@@ -46,6 +47,7 @@ content_type_to_part_class_map: dict[str, type[Part]] = {
     # `Plans/customxml-implementation-plan.md` §3.6. The Phase-3
     # `CustomXmlParts` collection wraps loaded base `Part` instances
     # at enumeration time.
+    CT.PML_HANDOUT_MASTER: HandoutMasterPart,
     CT.PML_NOTES_MASTER: NotesMasterPart,
     CT.PML_NOTES_SLIDE: NotesSlidePart,
     CT.PML_SLIDE: SlidePart,
@@ -81,6 +83,7 @@ del (
     CorePropertiesPart,
     CustomPropertiesPart,
     CustomXmlPropertiesPart,
+    HandoutMasterPart,
     ImagePart,
     MediaPart,
     SlidePart,

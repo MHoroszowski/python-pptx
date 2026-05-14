@@ -22,13 +22,14 @@ from pptx.parts.media import MediaPart
 from pptx.parts.presentation import PresentationPart
 from pptx.parts.slide import (
     BaseSlidePart,
+    HandoutMasterPart,
     NotesMasterPart,
     NotesSlidePart,
     SlideLayoutPart,
     SlideMasterPart,
     SlidePart,
 )
-from pptx.slide import NotesMaster, NotesSlide, Slide, SlideLayout, SlideMaster
+from pptx.slide import HandoutMaster, NotesMaster, NotesSlide, Slide, SlideLayout, SlideMaster
 
 from ..unitutil.cxml import element
 from ..unitutil.file import absjoin, test_file_dir
@@ -177,6 +178,34 @@ class DescribeNotesMasterPart(object):
     @pytest.fixture
     def theme_part_(self, request):
         return instance_mock(request, Part)
+
+
+class DescribeHandoutMasterPart(object):
+    """Unit-test suite for `pptx.parts.slide.HandoutMasterPart` objects."""
+
+    def it_is_a_BaseSlidePart_subclass(self):
+        assert issubclass(HandoutMasterPart, BaseSlidePart)
+
+    def it_provides_access_to_its_handout_master(self, request):
+        handout_master_ = instance_mock(request, HandoutMaster)
+        HandoutMaster_ = class_mock(
+            request, "pptx.parts.slide.HandoutMaster", return_value=handout_master_
+        )
+        handoutMaster = element("p:handoutMaster")
+        handout_master_part = HandoutMasterPart(None, None, None, handoutMaster)
+
+        handout_master = handout_master_part.handout_master
+
+        HandoutMaster_.assert_called_once_with(handoutMaster, handout_master_part)
+        assert handout_master is handout_master_
+
+    def it_has_no_create_default_classmethod(self):
+        assert not hasattr(HandoutMasterPart, "create_default")
+
+    def it_can_be_constructed_as_a_handout_master_part(self):
+        handout_master_part = HandoutMasterPart(None, None, None, element("p:handoutMaster"))
+
+        assert isinstance(handout_master_part, HandoutMasterPart)
 
 
 class DescribeNotesSlidePart(object):

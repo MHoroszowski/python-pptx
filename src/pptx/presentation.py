@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from pptx.custom_xml import CustomXmlParts
     from pptx.oxml.presentation import CT_Presentation, CT_SlideId
     from pptx.parts.presentation import PresentationPart
-    from pptx.slide import NotesMaster, Slide, SlideLayouts
+    from pptx.slide import HandoutMaster, NotesMaster, Slide, SlideLayouts
     from pptx.util import Length
 
 
@@ -66,6 +66,15 @@ class Presentation(PartElementProxy):
         and returned. The same single instance is returned on each call.
         """
         return self.part.notes_master
+
+    @property
+    def handout_master(self) -> HandoutMaster:
+        """Instance of |HandoutMaster| for this presentation.
+
+        Raises |ValueError| when the presentation has no handout master because auto-create is
+        deliberately deferred until a built-in handout-master template ships in this fork.
+        """
+        return self.part.handout_master
 
     def save(self, file: str | os.PathLike[str] | IO[bytes]):
         """Writes this presentation to `file`.
