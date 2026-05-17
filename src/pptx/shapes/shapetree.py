@@ -812,31 +812,44 @@ class SlideShapes(_BaseGroupShapes):
         return SlideShapeFactory(shape_elm, self)
 
 
-class LayoutShapes(_BaseShapes):
+class LayoutShapes(_BaseGroupShapes):
     """Sequence of shapes appearing on a slide layout.
 
     The first shape in the sequence is the backmost in z-order and the last shape is topmost.
-    Supports indexed access, len(), index(), and iteration.
+    Supports indexed access, len(), index(), and iteration. Inherits
+    `add_textbox`/`add_shape`/`add_picture`/`add_group_shape` from
+    `_BaseGroupShapes` (this also closes upstream issue #1044 —
+    textbox-on-layout — for free) plus `add_placeholder` defined below.
     """
+
+    def add_placeholder(self, ph_type: PP_PLACEHOLDER, orient: str, sz: str) -> LayoutPlaceholder:
+        """Return a newly added placeholder appended to this layout shape tree.
+
+        `ph_type` is a member of `PP_PLACEHOLDER`, `orient` is one of
+        `'horz'`/`'vert'`, and `sz` is the placeholder size token
+        (e.g. `'full'`, `'half'`, `'quarter'`).
+        """
+        id_ = self._next_shape_id
+        ph_name = self._next_ph_name(ph_type, id_, orient)
+        sp = self._spTree.add_placeholder(id_, ph_name, ph_type, orient, sz, id_)
+        return cast(LayoutPlaceholder, self._shape_factory(sp))
 
     def _shape_factory(self, shape_elm: ShapeElement) -> BaseShape:
         """Return an instance of the appropriate shape proxy class for `shape_elm`."""
         return _LayoutShapeFactory(shape_elm, self)
 
 
-class MasterShapes(_BaseShapes):
+class MasterShapes(_BaseGroupShapes):
     """Sequence of shapes appearing on a slide master.
 
     The first shape in the sequence is the backmost in z-order and the last shape is topmost.
-    Supports indexed access, len(), and iteration.
+    Supports indexed access, len(), index(), and iteration. Reparented to
+    `_BaseGroupShapes` (issue #19 SF5) so a slide master gains the same
+    shape-authoring surface as a slide/layout —
+    `add_textbox`/`add_shape`/`add_picture`/`add_group_shape` — while
+    keeping the master-specific `_MasterShapeFactory` so placeholders on a
+    master proxy as |MasterPlaceholder|.
     """
-
-    def add_textbox(self, left: Length, top: Length, width: Length, height: Length) -> Shape:
-        """Return newly added text box shape appended to this master shape tree."""
-        shape_id = self._next_shape_id
-        name = "TextBox %d" % (shape_id - 1)
-        sp = self._spTree.add_textbox(shape_id, name, left, top, width, height)
-        return cast(Shape, self._shape_factory(sp))
 
     def _shape_factory(self, shape_elm: ShapeElement) -> BaseShape:
         """Return an instance of the appropriate shape proxy class for `shape_elm`."""
@@ -890,6 +903,59 @@ class LayoutPlaceholders(BasePlaceholders):
     __iter__: Callable[  # pyright: ignore[reportIncompatibleMethodOverride]
         [], Iterator[LayoutPlaceholder]
     ]
+
+    def add(
+        self,
+        idx: int,
+        ph_type: PP_PLACEHOLDER,
+        name: str | None = None,
+        left: Length | None = None,
+        top: Length | None = None,
+        width: Length | None = None,
+        height: Length | None = None,
+    ) -> LayoutPlaceholder:
+        """Add and return a new placeholder of `ph_type` with `idx` to this layout.
+
+        Creates a `<p:sp>` carrying a `<p:ph idx="..." type="...">` and
+        appends it to this layout's shape tree, then returns the
+        |LayoutPlaceholder| proxy. The new placeholder is immediately
+        visible via iteration/``len`` over this collection and survives a
+        save→reopen round-trip.
+
+        Geometry is optional — when `left`/`top`/`width`/`height` are all
+        |None| the placeholder inherits position and size from the slide
+        master (the normal case for layout placeholders). When any of the
+        four is given the others default to sane EMU values and an explicit
+        `a:xfrm` is written.
+
+        Raises |ValueError| if a placeholder with `idx` already exists on
+        this layout — `idx` must be unique within a layout's shape tree
+        (issue #19 SF6; ISC-37..43).
+        """
+        # ---reject duplicate idx on this layout (ISC-43 anti)---
+        for existing in self:
+            if existing.element.ph_idx == idx:
+                raise ValueError("layout already has a placeholder with idx %d" % idx)
+
+        id_ = self._next_shape_id
+        ph_name = name if name else self._next_ph_name(ph_type, id_, ST_Direction.HORZ)
+        # ---reuse the existing groupshape placeholder machinery; orient/sz
+        #    default to horz/full, then override idx/type on the p:ph---
+        sp = self._spTree.add_placeholder(id_, ph_name, ph_type, ST_Direction.HORZ, "full", idx)
+        ph = sp.ph
+        if ph is not None:
+            ph.idx = idx
+            ph.type = ph_type
+
+        # ---only write an explicit xfrm when caller specified geometry;
+        #    otherwise let the placeholder inherit from the master---
+        if any(v is not None for v in (left, top, width, height)):
+            sp.x = Emu(0) if left is None else left
+            sp.y = Emu(0) if top is None else top
+            sp.cx = Emu(914400) if width is None else width
+            sp.cy = Emu(457200) if height is None else height
+
+        return cast("LayoutPlaceholder", self._shape_factory(sp))
 
     def get(self, idx: int, default: LayoutPlaceholder | None = None) -> LayoutPlaceholder | None:
         """The first placeholder shape with matching `idx` value, or `default` if not found."""

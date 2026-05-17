@@ -157,6 +157,20 @@ class _BaseSlidePlaceholder(_InheritsDimensions, Shape):
         layout, idx = self.part.slide_layout, self._element.ph_idx
         return layout.placeholders.get(idx=idx)
 
+    def insert_chart(self, chart_type, chart_data):
+        """Reject chart insertion on a non-chart placeholder.
+
+        Only a chart-capable placeholder (``ChartPlaceholder``, which
+        overrides this method with the real implementation) accepts a
+        chart. Calling ``insert_chart`` on any other placeholder raises
+        |TypeError| explicitly rather than silently corrupting the
+        shape tree (issue #19 SF8; ISC-50..55 anti-case).
+        """
+        raise TypeError(
+            "insert_chart() is only valid on a chart placeholder; this is a %s"
+            % type(self).__name__
+        )
+
     def _replace_placeholder_with(self, element):
         """
         Substitute *element* for this placeholder element in the shapetree.

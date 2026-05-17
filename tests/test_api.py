@@ -21,6 +21,13 @@ class DescribePresentation(object):
         Package_.open.assert_called_once_with(path)
         assert prs is prs_
 
+    def it_accepts_a_potx_template_content_type(self, Package_, prs_, prs_part_):
+        # issue #19 / scanny#1070 — .potx main part is template.main+xml
+        Package_.open.return_value.main_document_part = prs_part_
+        prs_part_.content_type = CT.PML_TEMPLATE_MAIN
+        prs_part_.presentation = prs_
+        assert Presentation("template.potx") is prs_
+
     # fixtures -------------------------------------------------------
 
     @pytest.fixture

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Callable, cast
 from pptx.oxml import parse_from_template, parse_xml
 from pptx.oxml.dml.fill import CT_GradientFillProperties
 from pptx.oxml.ns import nsdecls
-from pptx.oxml.simpletypes import XsdBoolean, XsdString
+from pptx.oxml.simpletypes import XsdBoolean, XsdString, XsdUnsignedInt
 from pptx.oxml.xmlchemy import (
     BaseOxmlElement,
     Choice,
@@ -304,6 +304,31 @@ class CT_SlideLayout(_BaseSlideElement):
     )
     del _tag_seq
 
+    @classmethod
+    def new(cls) -> CT_SlideLayout:
+        """Return a new `p:sldLayout` element configured as a base slide layout."""
+        return cast(CT_SlideLayout, parse_xml(cls._sld_xml()))
+
+    @staticmethod
+    def _sld_xml():
+        return (
+            "<p:sldLayout %s>\n"
+            "  <p:cSld>\n"
+            "    <p:spTree>\n"
+            "      <p:nvGrpSpPr>\n"
+            '        <p:cNvPr id="1" name=""/>\n'
+            "        <p:cNvGrpSpPr/>\n"
+            "        <p:nvPr/>\n"
+            "      </p:nvGrpSpPr>\n"
+            "      <p:grpSpPr/>\n"
+            "    </p:spTree>\n"
+            "  </p:cSld>\n"
+            "  <p:clrMapOvr>\n"
+            "    <a:masterClrMapping/>\n"
+            "  </p:clrMapOvr>\n"
+            "</p:sldLayout>" % nsdecls("a", "p", "r")
+        )
+
 
 class CT_SlideLayoutIdList(BaseOxmlElement):
     """`p:sldLayoutIdLst` element, child of `p:sldMaster`.
@@ -312,17 +337,70 @@ class CT_SlideLayoutIdList(BaseOxmlElement):
     """
 
     sldLayoutId_lst: list[CT_SlideLayoutIdListEntry]
+    _add_sldLayoutId: Callable[..., CT_SlideLayoutIdListEntry]
 
     sldLayoutId = ZeroOrMore("p:sldLayoutId")
+
+    def add_sldLayoutId(self, rId: str) -> CT_SlideLayoutIdListEntry:
+        """Create and append a new `p:sldLayoutId` child referencing `rId`.
+
+        The allocated `@id` is an ``ST_SlideLayoutId`` in the high uint range
+        ``>= 2147483648`` (``0x80000000``), allocated as
+        ``max(existing layout ids) + 1``. This matches the convention every
+        real PowerPoint file uses (the default template's own layout ids run
+        ``2147483649..2147483659``).
+
+        ``p:sldMasterId/@id``, ``p:sldLayoutId/@id`` AND ``p:sldId/@id`` form
+        ONE shared logical id pool in PowerPoint's repair heuristic. Slide
+        ids start at ``256``; an earlier design that allocated layout ids
+        from a low ``256`` floor collided with the first slide's ``sldId``
+        and triggered the "PowerPoint found a problem" repair dialog — caught
+        by Interceptor visual verification, NOT by byte-level round-trip
+        tests. Allocating in the high range, above every slide id and at/above
+        the master-id floor, structurally prevents the collision.
+        """
+        return self._add_sldLayoutId(id=self._next_id, rId=rId)
+
+    @property
+    def _next_id(self) -> int:
+        """Return an unused high-range ``ST_SlideLayoutId`` for a new layout.
+
+        ``max(existing layout ids, _ID_FLOOR - 1) + 1`` where ``_ID_FLOOR`` is
+        the ``0x80000000`` boundary PowerPoint uses for layout/master ids —
+        mirrors the master-id allocator in ``parts/slide.py``. Scans upward
+        only in the pathological exhausted-pool case.
+        """
+        _ID_FLOOR = 2147483648  # 0x80000000 — ECMA-376 §19.2.1.27 master/layout id base
+        _ID_CEIL = 4294967295  # uint32 max
+        used = {
+            int(raw)
+            for sli in self.sldLayoutId_lst
+            if (raw := sli.get("id")) is not None and raw.lstrip("-").isdigit()
+        }
+        candidate = max(used | {_ID_FLOOR - 1}) + 1
+        if candidate <= _ID_CEIL:
+            return candidate
+        # ---pool exhausted (pathological): scan upward for the lowest free slot---
+        for n in range(_ID_FLOOR, _ID_CEIL + 1):
+            if n not in used:
+                return n
+        raise ValueError("slide-layout id pool exhausted")
 
 
 class CT_SlideLayoutIdListEntry(BaseOxmlElement):
     """`p:sldLayoutId` element, child of `p:sldLayoutIdLst`.
 
-    Contains a reference to a slide layout.
+    Contains a reference to a slide layout. ``id`` is the OOXML
+    ``ST_SlideLayoutId`` (PresentationML §19.3.1.43) — distinct from the
+    relationship ``r:id``; it is the stable identifier PowerPoint uses to
+    address a layout and is what ``SlideMaster.get_layout(slide_layout_id)``
+    matches against (issue #19 / scanny/python-pptx#269).
     """
 
     rId: str = RequiredAttribute("r:id", XsdString)  # pyright: ignore[reportAssignmentType]
+    id: int | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "id", XsdUnsignedInt
+    )
 
 
 class CT_SlideMaster(_BaseSlideElement):

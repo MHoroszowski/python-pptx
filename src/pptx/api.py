@@ -53,6 +53,16 @@ def _default_pptx_path() -> str:
 
 
 def _is_pptx_package(prs_part: PresentationPart):
-    """Return |True| if *prs_part* is a valid main document part, |False| otherwise."""
-    valid_content_types = (CT.PML_PRESENTATION_MAIN, CT.PML_PRES_MACRO_MAIN)
+    """Return |True| if *prs_part* is a valid main document part, |False| otherwise.
+
+    The allowlist includes ``PML_TEMPLATE_MAIN`` so ``.potx`` template packages
+    open as ordinary presentations (issue #19 / scanny/python-pptx#1070,
+    #1095). A ``.potx`` differs from a ``.pptx`` only in this content-type;
+    every downstream part graph is identical.
+    """
+    valid_content_types = (
+        CT.PML_PRESENTATION_MAIN,
+        CT.PML_PRES_MACRO_MAIN,
+        CT.PML_TEMPLATE_MAIN,
+    )
     return prs_part.content_type in valid_content_types
