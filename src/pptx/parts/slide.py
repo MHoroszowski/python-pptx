@@ -17,6 +17,7 @@ from pptx.opc.packuri import PackURI
 from pptx.oxml.slide import CT_NotesMaster, CT_NotesSlide, CT_Slide, CT_SlideLayout
 from pptx.oxml.theme import CT_OfficeStyleSheet
 from pptx.parts.chart import ChartPart
+from pptx.parts.comments import CommentsPart, ModernCommentsPart
 from pptx.parts.embeddedpackage import EmbeddedPackagePart
 from pptx.parts.image import Image, ImagePart
 from pptx.slide import HandoutMaster, NotesMaster, NotesSlide, Slide, SlideLayout, SlideMaster
@@ -300,6 +301,83 @@ class SlidePart(BaseSlidePart):
         notes_slide_part = NotesSlidePart.new(self.package, self)
         self.relate_to(notes_slide_part, RT.NOTES_SLIDE)
         return notes_slide_part
+
+    @property
+    def has_modern_comments(self) -> bool:
+        """`True` if this slide has a modern (2018) threaded-comments part.
+
+        Non-mutating — unlike :attr:`modern_comments_part`, this never
+        creates the part. Mirrors :attr:`has_notes_slide`.
+        """
+        try:
+            self.part_related_by(RT.THREADED_COMMENT)
+        except KeyError:
+            return False
+        return True
+
+    @lazyproperty
+    def modern_comments_part(self) -> ModernCommentsPart:
+        """The |ModernCommentsPart| for this slide, lazily created.
+
+        Mirrors :attr:`notes_slide` exactly: try the existing
+        ``RT.THREADED_COMMENT`` relationship and, only on |KeyError|, create
+        the part and relate the slide to it. The per-slide partname is
+        ``/ppt/comments/modernComment_slideN.xml`` where ``N`` is THIS
+        slide's own partname index (e.g. ``slide3.xml`` →
+        ``modernComment_slide3.xml``) — matching PowerPoint's own naming and
+        keeping one threaded-comments part per slide. The same single part
+        is returned on every call.
+        """
+        try:
+            return cast("ModernCommentsPart", self.part_related_by(RT.THREADED_COMMENT))
+        except KeyError:
+            return self._add_modern_comments_part()
+
+    def _add_modern_comments_part(self) -> ModernCommentsPart:
+        """Create + relate a fresh |ModernCommentsPart| for this slide.
+
+        Caller guarantees no ``RT.THREADED_COMMENT`` rel exists yet. The
+        partname index is keyed off this slide's own ``slideN.xml`` index so
+        the comments part travels with its slide; ``next_partname`` keeps it
+        collision-safe if that exact name is somehow already taken.
+        """
+        slide_idx = self.partname.idx or 1
+        candidate = PackURI("/ppt/comments/modernComment_slide%d.xml" % slide_idx)
+        existing = {p.partname for p in self.package.iter_parts()}
+        if candidate in existing:
+            candidate = self.package.next_partname("/ppt/comments/modernComment_slide%d.xml")
+        modern_comments_part = ModernCommentsPart.new(self.package, candidate)
+        self.relate_to(modern_comments_part, RT.THREADED_COMMENT)
+        return modern_comments_part
+
+    @property
+    def has_legacy_comments(self) -> bool:
+        """`True` if this slide has a legacy (pre-2018) ``<p:cm>`` part.
+
+        Non-mutating — never creates the part. Mirrors
+        :attr:`has_modern_comments`. python-pptx only *writes* modern
+        threaded comments, but a deck authored elsewhere can carry a legacy
+        per-slide comments part; the read path (issue #25 Wave 3, SF8 /
+        ISC-44, ISC-67) must surface those rather than silently drop them.
+        """
+        try:
+            self.part_related_by(RT.COMMENTS)
+        except KeyError:
+            return False
+        return True
+
+    @property
+    def legacy_comments_part_if_present(self) -> "CommentsPart | None":
+        """The slide's legacy |CommentsPart| if related, else ``None``.
+
+        Strictly non-mutating read accessor for legacy↔modern coexistence
+        (SF8). The legacy part is never created by python-pptx — it only
+        exists when the source deck already had one.
+        """
+        try:
+            return cast("CommentsPart", self.part_related_by(RT.COMMENTS))
+        except KeyError:
+            return None
 
     def duplicate(self) -> SlidePart:
         """Return a new |SlidePart| that is a deep copy of this one.

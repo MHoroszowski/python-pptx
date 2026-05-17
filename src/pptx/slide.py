@@ -23,6 +23,7 @@ from pptx.shared import ElementProxy, ParentedElementProxy, PartElementProxy
 from pptx.util import Inches, Length, Pt, lazyproperty
 
 if TYPE_CHECKING:
+    from pptx.comments import Comments
     from pptx.oxml.presentation import CT_SlideIdList, CT_SlideMasterIdList
     from pptx.oxml.slide import (
         CT_CommonSlideData,
@@ -395,6 +396,78 @@ class Slide(_BaseSlide):
             placeholder = cast("SlidePlaceholder", self._first_ph_of_type(PP_PLACEHOLDER.FOOTER))
 
         placeholder.text_frame.text = value
+
+    @lazyproperty
+    def comments(self) -> Comments:
+        """The |Comments| collection of modern threaded comments on this slide.
+
+        Iterable in document order, ``len()``-able, with
+        ``add(text, author, anchor=None)`` and ``remove(comment)``. The
+        backing modern-comments part is created lazily on the first
+        ``add`` — reading an empty collection never mutates the package.
+        """
+        from pptx.comments import Comments
+
+        return Comments(self)
+
+    @property
+    def _modern_comments_part_if_present(self):
+        """The slide's |ModernCommentsPart| if related, else ``None``.
+
+        Non-mutating helper for the |Comments| collection — read paths
+        (``__len__``/``__iter__``/``remove``) must never create the part.
+        """
+        if not self.part.has_modern_comments:
+            return None
+        return self.part.modern_comments_part
+
+    def _get_or_add_author_guid(self, name: str) -> str:
+        """Get-or-add `name` on the MODERN authors part; return its GUID.
+
+        The modern ``<p188:cm>``/``<p188:reply>`` ``authorId`` is a GUID; it
+        MUST resolve to a ``<p188:author>`` in the presentation-level modern
+        ``/ppt/authors.xml`` part. Writing the author there (not the legacy
+        integer-keyed ``commentAuthors.xml``) is the issue-#25 repair-dialog
+        fix: previously a uuid5 GUID was stamped on the comment while the
+        author was only written to the legacy part, leaving the GUID
+        dangling. Reuses an existing same-name author with no duplicate
+        (ISC-5) and returns that author's stored GUID.
+        """
+        authors_part = self.part.package.presentation_part.authors_part
+        return authors_part.get_or_add_author(name).id
+
+    def _resolve_author_name(self, author_guid: str) -> str | None:
+        """Resolve a modern comment ``authorId`` GUID back to a display name.
+
+        Reads the modern ``/ppt/authors.xml`` part (the GUID-keyed author
+        list) — the authors part is the source of truth across a
+        save→reopen, not a re-derivation. Returns ``None`` when no
+        ``<p188:author>`` carries `author_guid` (externally-edited or
+        malformed file).
+        """
+        pres_part = self.part.package.presentation_part
+        if not pres_part.has_authors:
+            return None
+        for author in pres_part.authors_part.iter_authors():
+            if author.id == author_guid:
+                return author.name
+        return None
+
+    def _resolve_legacy_author_name(self, author_id: int) -> str | None:
+        """Resolve a *legacy* ``<p:cm>`` integer ``authorId`` to a name.
+
+        Legacy comments key the author by the integer ``id`` on the
+        presentation ``<p:cmAuthorLst>`` (not the modern deterministic
+        GUID). Used only by legacy-backed |Comment| proxies for SF8
+        coexistence. Returns ``None`` when no author has that id.
+        """
+        pres_part = self.part.package.presentation_part
+        if not pres_part.has_comment_authors:
+            return None
+        for author in pres_part.comment_authors_part.iter_authors():
+            if author.id == author_id:
+                return author.name
+        return None
 
     @lazyproperty
     def placeholders(self) -> SlidePlaceholders:

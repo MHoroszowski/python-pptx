@@ -10,6 +10,12 @@ from pptx.api import Presentation
 from pptx.opc.constants import CONTENT_TYPE as CT
 from pptx.opc.package import PartFactory
 from pptx.parts.chart import ChartPart
+from pptx.parts.comments import (
+    AuthorsPart,
+    CommentAuthorsPart,
+    CommentsPart,
+    ModernCommentsPart,
+)
 from pptx.parts.coreprops import CorePropertiesPart
 from pptx.parts.custom_properties import CustomPropertiesPart
 from pptx.parts.custom_xml import CustomXmlPropertiesPart
@@ -41,6 +47,10 @@ content_type_to_part_class_map: dict[str, type[Part]] = {
     CT.PML_TEMPLATE_MAIN: PresentationPart,
     CT.PML_SLIDESHOW_MAIN: PresentationPart,
     CT.OPC_CORE_PROPERTIES: CorePropertiesPart,
+    CT.PML_COMMENT_AUTHORS: CommentAuthorsPart,
+    CT.PML_COMMENTS: CommentsPart,
+    CT.PML_THREADED_COMMENTS: ModernCommentsPart,
+    CT.PML_AUTHORS: AuthorsPart,
     CT.OFC_CUSTOM_PROPERTIES: CustomPropertiesPart,
     CT.OFC_CUSTOM_XML_PROPERTIES: CustomXmlPropertiesPart,
     # NOTE: CT.XML is intentionally NOT mapped to CustomXmlPart — see
@@ -80,6 +90,10 @@ PartFactory.part_type_for.update(content_type_to_part_class_map)
 
 del (
     ChartPart,
+    AuthorsPart,
+    CommentAuthorsPart,
+    CommentsPart,
+    ModernCommentsPart,
     CorePropertiesPart,
     CustomPropertiesPart,
     CustomXmlPropertiesPart,

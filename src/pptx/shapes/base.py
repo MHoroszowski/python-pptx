@@ -18,6 +18,9 @@ from pptx.util import lazyproperty
 _LXML_XPATH = _Element.xpath
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from pptx.comments import Comment, Comments
     from pptx.enum.shapes import MSO_SHAPE_TYPE, PP_PLACEHOLDER
     from pptx.oxml.shapes import ShapeElement
     from pptx.oxml.shapes.shared import CT_Placeholder
@@ -281,6 +284,23 @@ class BaseShape(object):
         return self._element.shape_id
 
     @property
+    def comments(self) -> "_ShapeComments":
+        """The comments anchored to *this* shape (issue #25 Wave 3, SF7).
+
+        A filtered, read-only view over the owning slide's
+        ``slide.comments`` that yields only the modern threaded comments
+        whose anchor shape id matches this shape's :attr:`shape_id`.
+        Iterable and ``len()``-able; an empty (not error) collection when
+        the shape has no comments (ISC-39). A comment anchored to another
+        shape never appears here (ISC-40) — anchoring is by stable shape
+        id, so the filter survives a save→reopen. Legacy ``<p:cm>``
+        comments anchor to an absolute point rather than a shape and so
+        never participate in a per-shape filter.
+        """
+        slide = self.part.slide  # pyright: ignore[reportAttributeAccessIssue]
+        return _ShapeComments(slide.comments, self.shape_id)
+
+    @property
     def shape_type(self) -> MSO_SHAPE_TYPE:
         """A member of MSO_SHAPE_TYPE classifying this shape by type.
 
@@ -340,3 +360,29 @@ class _PlaceholderFormat(ElementProxy):
         A member of the :ref:`PpPlaceholderType` enumeration, e.g. PP_PLACEHOLDER.CHART
         """
         return self._ph.type
+
+
+class _ShapeComments:
+    """A read-only, per-shape filtered view over a slide's comments.
+
+    Backs :attr:`BaseShape.comments` (issue #25 Wave 3, SF7). Wraps the
+    slide's |Comments| collection and yields only the comments whose anchor
+    resolves to one specific shape id. Iterable and ``len()``-able; indexing
+    is supported for convenience. Never mutates the package — anchoring is
+    established at ``slide.comments.add(..., anchor=shape)`` time.
+    """
+
+    def __init__(self, comments: "Comments", shape_id: int):
+        self._comments = comments
+        self._shape_id = shape_id
+
+    def __iter__(self) -> "Iterator[Comment]":
+        for comment in self._comments:
+            if comment._anchor_shape_id == self._shape_id:  # noqa: SLF001
+                yield comment
+
+    def __len__(self) -> int:
+        return sum(1 for _ in self)
+
+    def __getitem__(self, idx: int) -> "Comment":
+        return list(self)[idx]
