@@ -8,8 +8,10 @@ from lxml.etree import _Element  # pyright: ignore[reportPrivateUsage]
 
 from pptx.action import ActionSetting
 from pptx.dml.effect import ShadowFormat
+from pptx.dml.threed import Scene3DFormat, Shape3DFormat
+from pptx.oxml.ns import qn
 from pptx.shared import ElementProxy
-from pptx.util import lazyproperty
+from pptx.util import Emu, lazyproperty
 
 # ---bound to the lxml base method so `find_by_xpath(..., namespaces=ns)` can
 # ---honor the caller's prefix map without going through the project's
@@ -282,6 +284,150 @@ class BaseShape(object):
         The id of a shape is unique among all shapes on a slide.
         """
         return self._element.shape_id
+
+    @property
+    def flip_horizontal(self) -> bool:
+        """Read/write. |True| if this shape is mirrored left-to-right.
+
+        Backed by the `flipH` attribute of the shape's `a:xfrm`. Assigning a
+        value creates the `a:xfrm` element if necessary (issue #18 SF8).
+        """
+        return bool(self._element.flipH)
+
+    @flip_horizontal.setter
+    def flip_horizontal(self, value: bool) -> None:
+        self._element.flipH = bool(value)
+
+    @property
+    def flip_vertical(self) -> bool:
+        """Read/write. |True| if this shape is mirrored top-to-bottom.
+
+        Backed by the `flipV` attribute of the shape's `a:xfrm` (issue #18
+        SF8). `shape.flip_vertical = True` round-trips through PowerPoint.
+        """
+        return bool(self._element.flipV)
+
+    @flip_vertical.setter
+    def flip_vertical(self, value: bool) -> None:
+        self._element.flipV = bool(value)
+
+    @lazyproperty
+    def scene_3d(self) -> Scene3DFormat:
+        """|Scene3DFormat| object providing access to this shape's 3-D scene.
+
+        Lets a preset camera be applied (`a:scene3d`). A |Scene3DFormat| is
+        always returned; the `a:scene3d` element (with its schema-mandatory
+        camera + light-rig children) is created only when a camera preset is
+        assigned (issue #18 SF4).
+        """
+        return Scene3DFormat(self._element.spPr)
+
+    @lazyproperty
+    def shape_3d(self) -> Shape3DFormat:
+        """|Shape3DFormat| object providing access to this shape's 3-D format.
+
+        Lets extrusion / contour be applied (`a:sp3d`). Always returned; the
+        `a:sp3d` element is created only when a 3-D property is assigned
+        (issue #18 SF4).
+        """
+        return Shape3DFormat(self._element.spPr)
+
+    @property
+    def slide_left(self) -> Length:
+        """World-space left edge of this shape in slide EMU.
+
+        For a shape that is **not** inside a group this equals :attr:`left`.
+        For a shape inside one or more groups, the enclosing group
+        transforms (`a:off`/`a:ext` vs `a:chOff`/`a:chExt`) are composed
+        outward so the returned value is the true position on the slide
+        (issue #18 SF7). Read-only; this never mutates the stored `a:xfrm`.
+        """
+        return self._world_rect()[0]
+
+    @property
+    def slide_top(self) -> Length:
+        """World-space top edge of this shape in slide EMU (see :attr:`slide_left`)."""
+        return self._world_rect()[1]
+
+    @property
+    def slide_width(self) -> Length:
+        """World-space width of this shape in slide EMU (see :attr:`slide_left`)."""
+        return self._world_rect()[2]
+
+    @property
+    def slide_height(self) -> Length:
+        """World-space height of this shape in slide EMU (see :attr:`slide_left`)."""
+        return self._world_rect()[3]
+
+    def _world_rect(self) -> tuple[Length, Length, Length, Length]:
+        """Return ``(left, top, width, height)`` of this shape in slide EMU.
+
+        Composes every enclosing ``p:grpSp`` group transform outward. The
+        same affine handles arbitrary nesting depth — each group's
+        ``a:off``/``a:ext`` are expressed in its own parent's child space, so
+        re-applying the next ancestor's transform composes correctly with no
+        nested-vs-single special-casing. A degenerate group (``a:chExt`` of
+        zero on either axis) falls back to an identity scale rather than
+        dividing by zero.
+
+        Scope note: only the scale + translate of each group is composed.
+        Group **rotation** and **flipH/flipV** are intentionally not folded
+        in — the result is the axis-aligned child-orientation box (matching
+        PowerPoint's COM ``Shape.Left`` semantics for grouped shapes). A
+        rotated/flipped enclosing group will therefore give the unrotated
+        rect; that is by design, not a bug.
+        """
+
+        def _f(elm, path: str, default: int = 0) -> int:
+            vals = elm.xpath(path)
+            return int(vals[0]) if vals else default
+
+        x = float(self._element.x or 0)
+        y = float(self._element.y or 0)
+        cx = float(self._element.cx or 0)
+        cy = float(self._element.cy or 0)
+
+        parent = self._element.getparent()
+        while parent is not None and parent.tag == qn("p:grpSp"):
+            base = "./p:grpSpPr/a:xfrm"
+            gx = _f(parent, f"{base}/a:off/@x")
+            gy = _f(parent, f"{base}/a:off/@y")
+            gcx = _f(parent, f"{base}/a:ext/@cx")
+            gcy = _f(parent, f"{base}/a:ext/@cy")
+            chx = _f(parent, f"{base}/a:chOff/@x")
+            chy = _f(parent, f"{base}/a:chOff/@y")
+            chcx = _f(parent, f"{base}/a:chExt/@cx")
+            chcy = _f(parent, f"{base}/a:chExt/@cy")
+            sx = (gcx / chcx) if chcx else 1.0
+            sy = (gcy / chcy) if chcy else 1.0
+            x = gx + (x - chx) * sx
+            y = gy + (y - chy) * sy
+            cx = cx * sx
+            cy = cy * sy
+            parent = parent.getparent()
+
+        return (Emu(int(x)), Emu(int(y)), Emu(int(cx)), Emu(int(cy)))
+
+    def duplicate(self, insert_at_z: int | None = None) -> "BaseShape":
+        """Return a deep-copy of this shape added to the same shape tree.
+
+        The clone gets a fresh, unique shape id and a unique name; its XML is
+        an independent deep copy (mutating the clone does not affect the
+        original). With `insert_at_z` |None| (default) the clone is appended
+        at the top of the z-order; otherwise it is inserted at z-order index
+        `insert_at_z` (issue #18 SF9).
+
+        Limitation: this is a pure XML deep-copy. For a relationship-backed
+        shape (picture, chart, table, OLE object) the `r:embed`/`r:id`
+        reference is copied but the target part is **not** cloned — both
+        shapes then share one image/chart part. That is fine for read-back
+        and for autoshapes/connectors/text boxes (no relationships), but a
+        true picture/chart duplicate that needs an independent part is out
+        of scope here.
+        """
+        return self._parent._duplicate_shape(  # pyright: ignore[reportAttributeAccessIssue]
+            self, insert_at_z
+        )
 
     @property
     def comments(self) -> "_ShapeComments":

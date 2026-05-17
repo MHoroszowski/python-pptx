@@ -317,6 +317,55 @@ class _BaseShapes(ParentedElementProxy):
         """Return an instance of the appropriate shape proxy class for `shape_elm`."""
         return BaseShapeFactory(shape_elm, self)
 
+    def _duplicate_shape(self, shape: BaseShape, insert_at_z: int | None = None) -> BaseShape:
+        """Deep-copy `shape` into this shape tree and return the new shape.
+
+        Every `p:cNvPr` id in the copied subtree is reassigned a fresh unique
+        id (a colliding id is a PowerPoint load/repair trigger, especially
+        when duplicating a group), the top-level shape gets a unique name,
+        and the clone is appended (or inserted at z-order `insert_at_z`).
+        """
+        from copy import deepcopy
+
+        new_elm = deepcopy(shape._element)  # noqa: SLF001
+
+        # ---Reassign EVERY cNvPr id in the copied subtree to a fresh,
+        # ---sequentially-unique value. `_next_shape_id` is `max_shape_id +
+        # ---1`; before the clone is appended it would return the SAME id on
+        # ---every call, so a duplicated *group* (N descendant cNvPr) would
+        # ---get N colliding ids → PowerPoint repair. Allocate
+        # ---`max + 1 + i` instead. `max_shape_id` already scans every
+        # ---spTree descendant cNvPr (placeholders + group children
+        # ---included), so these are unique slide-wide.---
+        base_id = self._spTree.max_shape_id
+        existing_names = set(self._spTree.xpath("//p:cNvPr/@name"))
+        cNvPrs = new_elm.xpath(".//p:cNvPr")
+        for i, cNvPr in enumerate(cNvPrs):
+            cNvPr.set("id", str(base_id + 1 + i))
+            if i == 0:
+                root = cNvPr.get("name") or "Shape"
+                candidate, n = f"{root} (copy)", 1
+                while candidate in existing_names:
+                    n += 1
+                    candidate = f"{root} (copy {n})"
+                cNvPr.set("name", candidate)
+                existing_names.add(candidate)
+
+        # ---z-order: `_iter_member_elms` yields only shape elements (never
+        # ---the leading `nvGrpSpPr`/`grpSpPr`), so inserting before any
+        # ---member — even index 0 — is always after `grpSpPr` and safe.
+        # ---Clamp negatives to 0 so a stray negative z can't reverse-index.---
+        members = list(self._iter_member_elms())
+        if insert_at_z is None or insert_at_z >= len(members):
+            self._spTree.append(new_elm)
+        else:
+            members[max(0, insert_at_z)].addprevious(new_elm)
+
+        recalc = getattr(self, "_recalculate_extents", None)
+        if callable(recalc):
+            recalc()
+        return self._shape_factory(new_elm)
+
 
 class _BaseGroupShapes(_BaseShapes):
     """Base class for shape-trees that can add shapes."""
