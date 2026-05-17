@@ -2,8 +2,8 @@
 
 Covers the surface added on top of the GetThematic port: the `add_chart`
 dispatch shim, the extended `XL_CHART_TYPE` members, round-trip preservation,
-content-type / relationship wiring, the `NotImplementedError` for
-writer-deferred types, and the `WaterfallChartData` data API. See issue #14.
+content-type / relationship wiring, formerly-deferred types now being
+writable (Phase C), and the `WaterfallChartData` data API. See issue #14.
 """
 
 from __future__ import annotations
@@ -138,43 +138,50 @@ class DescribeAddChartDispatch:
     @pytest.mark.parametrize(
         "name", ["TREEMAP", "SUNBURST", "FUNNEL", "BOX_WHISKER", "HISTOGRAM", "PARETO"]
     )
-    def it_raises_NotImplementedError_for_writer_deferred_types(self, name):
+    def it_now_writes_formerly_deferred_types(self, name):
+        # Phase C (issue #14) inverted the Phase-A/B contract: these types no
+        # longer raise NotImplementedError — they are writable. Each is
+        # exercised in depth in test_chartex_phasec.py; here we just assert
+        # add_chart no longer raises for them.
+        from pptx.chart.data import (
+            BoxWhiskerChartData,
+            FunnelChartData,
+            HistogramChartData,
+            ParetoChartData,
+            SunburstChartData,
+            TreemapChartData,
+        )
+
         _, slide = _slide()
-        with pytest.raises(NotImplementedError, match="no writer yet"):
-            slide.shapes.add_chart(
-                getattr(XL_CHART_TYPE, name),
-                Inches(1),
-                Inches(1),
-                Inches(5),
-                Inches(3),
-                _waterfall_data(),
-            )
+        if name in ("TREEMAP", "SUNBURST"):
+            cd = {"TREEMAP": TreemapChartData, "SUNBURST": SunburstChartData}[name]()
+            cd.add_level(["A", "B"])
+            cd.add_level(["x", "y"])
+            cd.add_series("S", [1, 2])
+        elif name in ("FUNNEL", "BOX_WHISKER"):
+            cd = {"FUNNEL": FunnelChartData, "BOX_WHISKER": BoxWhiskerChartData}[name]()
+            cd.categories = ["a", "b"]
+            cd.add_series("S", [1, 2])
+        else:
+            cd = {"HISTOGRAM": HistogramChartData, "PARETO": ParetoChartData}[name]()
+            cd.add_series("S", [1, 2, 3, 4], bin_count=2)
+        gf = slide.shapes.add_chart(
+            getattr(XL_CHART_TYPE, name), Inches(1), Inches(1), Inches(5), Inches(3), cd
+        )
+        assert gf.has_chartex is True
 
     def it_can_add_via_add_chartex_directly(self):
         _, slide = _slide()
         gf = slide.shapes.add_chartex(_waterfall_data(), Inches(1), Inches(1), Inches(6), Inches(4))
         assert gf.has_chartex is True
 
-    def it_leaves_the_package_unmutated_when_a_deferred_type_raises(self):
-        # Atomicity: NotImplementedError must fire before any part/rel is
-        # created, so a caught error does not leave a corrupt presentation.
-        prs, slide = _slide()
-        shape_count_before = len(slide.shapes._spTree)
-        part_count_before = len(list(prs.part.package.iter_parts()))
-        with pytest.raises(NotImplementedError):
-            slide.shapes.add_chart(
-                XL_CHART_TYPE.SUNBURST,
-                Inches(1),
-                Inches(1),
-                Inches(5),
-                Inches(3),
-                _waterfall_data(),
-            )
-        assert len(slide.shapes._spTree) == shape_count_before
-        assert len(list(prs.part.package.iter_parts())) == part_count_before
-        blob, _ = _save_reopen(prs)
-        names = zipfile.ZipFile(io.BytesIO(blob)).namelist()
-        assert not any("chartEx" in n for n in names)
+    def it_has_an_empty_writer_deferred_set_after_phase_c(self):
+        import inspect
+
+        from pptx.shapes.shapetree import _BaseGroupShapes
+
+        body = inspect.getsource(_BaseGroupShapes.add_chart)
+        assert "_CHARTEX_WRITER_DEFERRED = ()" in body
 
 
 class DescribeChartExRoundTrip:

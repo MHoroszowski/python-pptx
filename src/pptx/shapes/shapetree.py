@@ -356,8 +356,8 @@ class _BaseGroupShapes(_BaseShapes):
         """
         from pptx.enum.chart import XL_CHART_TYPE
 
-        _CHARTEX_WRITABLE = (XL_CHART_TYPE.WATERFALL,)
-        _CHARTEX_WRITER_DEFERRED = (
+        _CHARTEX_WRITABLE = (
+            XL_CHART_TYPE.WATERFALL,
             XL_CHART_TYPE.TREEMAP,
             XL_CHART_TYPE.SUNBURST,
             XL_CHART_TYPE.FUNNEL,
@@ -365,13 +365,15 @@ class _BaseGroupShapes(_BaseShapes):
             XL_CHART_TYPE.HISTOGRAM,
             XL_CHART_TYPE.PARETO,
         )
+        # Phase C (issue #14) made every ChartEx type writable; the
+        # writer-deferred set is now empty.
+        _CHARTEX_WRITER_DEFERRED = ()
         if chart_type in _CHARTEX_WRITABLE:
             return self.add_chartex(chart_data, x, y, cx, cy)
-        if chart_type in _CHARTEX_WRITER_DEFERRED:
+        if chart_type in _CHARTEX_WRITER_DEFERRED:  # pragma: no cover - empty post Phase C
             raise NotImplementedError(
-                f"{chart_type} is a ChartEx (Office 2016) type with round-trip "
-                "preservation but no writer yet; only XL_CHART_TYPE.WATERFALL is "
-                "currently writable. See https://github.com/MHoroszowski/python-pptx/issues/14"
+                f"{chart_type} is a ChartEx (Office 2016) type with no writer yet. "
+                "See https://github.com/MHoroszowski/python-pptx/issues/14"
             )
         rId = self.part.add_chart_part(chart_type, chart_data)
         graphicFrame = self._add_chart_graphicFrame(rId, x, y, cx, cy)

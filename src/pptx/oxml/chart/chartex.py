@@ -260,6 +260,150 @@ class CT_PlotAreaRegion(BaseOxmlElement):
 
         return series
 
+    def _new_cx_series(self, layout_id: str, series_name: str, data_id: int = 0):
+        """Append a `<cx:series>` skeleton (tx, dataLabels, dataId) and return it.
+
+        Shared by every ChartEx series layout. The `<cx:layoutPr>` (and any
+        extra series) is added by the per-type method after this returns, so
+        the XSD `CT_Series` element order (tx, dataLabels, dataId, layoutPr) is
+        always respected.
+        """
+        import uuid
+
+        from lxml import etree
+
+        series = etree.SubElement(self, qn("cx:series"))
+        series.set("layoutId", layout_id)
+        series.set("uniqueId", f"{{{uuid.uuid4()}}}")
+
+        tx = etree.SubElement(series, qn("cx:tx"))
+        txData = etree.SubElement(tx, qn("cx:txData"))
+        f_elem = etree.SubElement(txData, qn("cx:f"))
+        f_elem.text = "Sheet1!$B$1"
+        v_elem = etree.SubElement(txData, qn("cx:v"))
+        v_elem.text = series_name
+
+        dataLabels = etree.SubElement(series, qn("cx:dataLabels"))
+        dataLabels.set("pos", "outEnd")
+        visibility = etree.SubElement(dataLabels, qn("cx:visibility"))
+        visibility.set("seriesName", "0")
+        visibility.set("categoryName", "0")
+        visibility.set("value", "1")
+
+        dataId_elem = etree.SubElement(series, qn("cx:dataId"))
+        dataId_elem.set("val", str(data_id))
+        return series
+
+    def add_treemap_series(self, series_name: str, data_id: int = 0):
+        """Add a treemap series (`layoutId="treemap"`)."""
+        from lxml import etree
+
+        series = self._new_cx_series("treemap", series_name, data_id)
+        layoutPr = etree.SubElement(series, qn("cx:layoutPr"))
+        pll = etree.SubElement(layoutPr, qn("cx:parentLabelLayout"))
+        pll.set("val", "banner")
+        return series
+
+    def add_sunburst_series(self, series_name: str, data_id: int = 0):
+        """Add a sunburst series (`layoutId="sunburst"`)."""
+        from lxml import etree
+
+        series = self._new_cx_series("sunburst", series_name, data_id)
+        layoutPr = etree.SubElement(series, qn("cx:layoutPr"))
+        pll = etree.SubElement(layoutPr, qn("cx:parentLabelLayout"))
+        pll.set("val", "none")
+        return series
+
+    def add_funnel_series(self, series_name: str, data_id: int = 0):
+        """Add a funnel series (`layoutId="funnel"`)."""
+        return self._new_cx_series("funnel", series_name, data_id)
+
+    def add_box_whisker_series(self, series_name: str, data_id: int = 0):
+        """Add a box & whisker series (`layoutId="boxWhisker"`)."""
+        from lxml import etree
+
+        series = self._new_cx_series("boxWhisker", series_name, data_id)
+        layoutPr = etree.SubElement(series, qn("cx:layoutPr"))
+        vis = etree.SubElement(layoutPr, qn("cx:visibility"))
+        vis.set("connectorLines", "1")
+        vis.set("meanLine", "0")
+        vis.set("meanMarker", "1")
+        vis.set("nonoutliers", "0")
+        vis.set("outliers", "1")
+        stats = etree.SubElement(layoutPr, qn("cx:statistics"))
+        stats.set("quartileMethod", "exclusive")
+        return series
+
+    def add_histogram_series(
+        self,
+        series_name: str,
+        data_id: int = 0,
+        bin_count: int | None = None,
+        bin_size: float | None = None,
+    ):
+        """Add a histogram series (`layoutId="clusteredColumn"` + `<cx:binning>`)."""
+        from lxml import etree
+
+        series = self._new_cx_series("clusteredColumn", series_name, data_id)
+        layoutPr = etree.SubElement(series, qn("cx:layoutPr"))
+        binning = etree.SubElement(layoutPr, qn("cx:binning"))
+        binning.set("intervalClosed", "r")
+        # CT_Binning child is an xsd:choice of binSize | binCount (both optional →
+        # automatic binning when neither given).
+        if bin_size is not None:
+            bs = etree.SubElement(binning, qn("cx:binSize"))
+            bs.text = str(bin_size)
+        elif bin_count is not None:
+            bc = etree.SubElement(binning, qn("cx:binCount"))
+            bc.text = str(bin_count)
+        return series
+
+    def add_pareto_series(
+        self,
+        series_name: str,
+        data_id: int = 0,
+        bin_count: int | None = None,
+        bin_size: float | None = None,
+    ):
+        """Add the Pareto pair: a binned `clusteredColumn` + a `paretoLine`.
+
+        Both series reference the same `data_id`. Returns the histogram series.
+        """
+        from lxml import etree
+
+        hist = self.add_histogram_series(series_name, data_id, bin_count, bin_size)
+        # paretoLine cumulative series over the same data
+        line = self._new_cx_series("paretoLine", series_name, data_id)
+        layoutPr = etree.SubElement(line, qn("cx:layoutPr"))
+        etree.SubElement(layoutPr, qn("cx:aggregation"))
+        return hist
+
+    def add_hierarchical_string_dimension(
+        self, data_elem, dim_type: str, formula: str, levels: list[list[str]]
+    ):
+        """Append a `<cx:strDim>` with one `<cx:lvl>` per hierarchy level.
+
+        `levels` is outermost-first; each inner list is that level's labels.
+        Used by treemap/sunburst. `ptCount` on every `<cx:lvl>` equals its
+        actual point count (off-by-one is a PowerPoint-repair trigger).
+        """
+        from lxml import etree
+
+        strDim = etree.SubElement(data_elem, qn("cx:strDim"))
+        strDim.set("type", dim_type)
+        f_elem = etree.SubElement(strDim, qn("cx:f"))
+        f_elem.text = formula
+        for labels in levels:
+            lvl = etree.SubElement(strDim, qn("cx:lvl"))
+            lvl.set("ptCount", str(len(labels)))
+            for idx, value in enumerate(labels):
+                if value is None or value == "":
+                    continue
+                pt = etree.SubElement(lvl, qn("cx:pt"))
+                pt.set("idx", str(idx))
+                pt.text = value
+        return strDim
+
 
 class CT_Series(BaseOxmlElement):
     """

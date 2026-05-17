@@ -236,19 +236,19 @@ WATERFALL
     Waterfall (ChartEx). Office 2016+. Write + round-trip supported.
 
 TREEMAP
-    Treemap (ChartEx). Office 2016+. Round-trip preservation only.
+    Treemap (ChartEx). Office 2016+. Write + round-trip supported.
 
 SUNBURST
-    Sunburst (ChartEx). Office 2016+. Round-trip preservation only.
+    Sunburst (ChartEx). Office 2016+. Write + round-trip supported.
 
 FUNNEL
-    Funnel (ChartEx). Office 2016+. Round-trip preservation only.
+    Funnel (ChartEx). Office 2016+. Write + round-trip supported.
 
 BOX_WHISKER
-    Box & Whisker (ChartEx). Office 2016+. Round-trip preservation only.
+    Box & Whisker (ChartEx). Office 2016+. Write + round-trip supported.
 
 HISTOGRAM
-    Histogram (ChartEx). Office 2016+. Round-trip preservation only.
+    Histogram (ChartEx). Office 2016+. Write + round-trip supported.
 
 PARETO
-    Pareto (ChartEx). Office 2016+. Round-trip preservation only.
+    Pareto (ChartEx). Office 2016+. Write + round-trip supported.

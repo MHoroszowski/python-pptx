@@ -10,7 +10,6 @@ from pptx.shared import ParentedElementProxy, PartElementProxy
 from pptx.util import lazyproperty
 
 if TYPE_CHECKING:
-    from pptx.chart.data import WaterfallChartData
     from pptx.oxml.chart.chartex import CT_Axis, CT_ChartSpace, CT_Series
     from pptx.parts.chartex import ChartExPart
 
@@ -119,44 +118,81 @@ class ChartEx(PartElementProxy):
         )
         return [Axis(axis, self) for axis in axis_elements]
 
-    def replace_data(self, chart_data: WaterfallChartData):
+    def replace_data(self, chart_data):
         """Replace the data for this chart with *chart_data*.
 
-        *chart_data* is a |WaterfallChartData| instance populated with the categories,
-        series values, and subtotal indices for the new chart data.
+        *chart_data* is any ChartEx data container — |WaterfallChartData|,
+        |TreemapChartData|, |SunburstChartData|, |FunnelChartData|,
+        |BoxWhiskerChartData|, |HistogramChartData|, or |ParetoChartData|.
+        The chartEx part name and its slide relationship are unchanged
+        (only `<cx:chartData>`, the series name, and the embedded workbook
+        are rewritten in place).
+
+        Raises |ValueError| if *chart_data*'s chart type does not match the
+        layout of the chart currently in this part.
         """
+        plotAreaRegion = self._chart.plotArea.plotAreaRegion
+        series_elems = plotAreaRegion.series_lst
+        cx_type = getattr(chart_data, "cx_chart_type", None)  # None ⇒ waterfall
+
+        # --- type-match guard (ISC-30) ---
+        current_layout = series_elems[0].get("layoutId") if series_elems else None
+        expected = {
+            None: "waterfall",
+            "treemap": "treemap",
+            "sunburst": "sunburst",
+            "funnel": "funnel",
+            "boxWhisker": "boxWhisker",
+            "histogram": "clusteredColumn",
+            "pareto": "clusteredColumn",
+        }[cx_type]
+        if current_layout is not None and current_layout != expected:
+            raise ValueError(
+                f"data is for a {expected!r} ChartEx but this chart is "
+                f"{current_layout!r}; replace_data cannot change chart type"
+            )
+
         chartData = self._chartspace.chartData
 
-        # --- rebuild the <cx:data id="0"> element ---
+        # --- rebuild the <cx:data id="0"> element per chart type ---
         for old_data in list(chartData.data_lst):
             chartData.remove(old_data)
         new_data = OxmlElement("cx:data")
         new_data.set("id", "0")
         chartData.append(new_data)
-        new_data.add_string_dimension("cat", chart_data.categories_ref, chart_data.categories)
-        new_data.add_numeric_dimension(
-            "val",
-            chart_data.values_ref,
-            chart_data.series_values,
-            chart_data.number_format,
-        )
 
-        # --- update series name ---
-        series_elems = self._chart.plotArea.plotAreaRegion.series_lst
-        if series_elems:
-            series_elem = series_elems[0]
+        if cx_type in ("treemap", "sunburst"):
+            plotAreaRegion.add_hierarchical_string_dimension(
+                new_data, "cat", chart_data.categories_ref, chart_data.levels
+            )
+            new_data.add_numeric_dimension(
+                "size", chart_data.values_ref, chart_data.series_values, chart_data.number_format
+            )
+        elif cx_type in ("histogram", "pareto"):
+            new_data.add_numeric_dimension(
+                "val", chart_data.values_ref, chart_data.series_values, chart_data.number_format
+            )
+        else:
+            # waterfall / funnel / boxWhisker: cat strDim + val numDim
+            new_data.add_string_dimension("cat", chart_data.categories_ref, chart_data.categories)
+            new_data.add_numeric_dimension(
+                "val", chart_data.values_ref, chart_data.series_values, chart_data.number_format
+            )
+
+        # --- update series name on every series (Pareto has two) ---
+        for series_elem in series_elems:
             tx = series_elem.tx
             if tx is not None:
                 txData = tx.txData
                 if txData is not None:
-                    f_elem = txData.f
-                    if f_elem is not None:
-                        f_elem.text = chart_data.series_name_ref
-                    v_elem = txData.v
-                    if v_elem is not None:
-                        v_elem.text = chart_data.series_name
+                    if txData.f is not None:
+                        txData.f.text = chart_data.series_name_ref
+                    if txData.v is not None:
+                        txData.v.text = chart_data.series_name
 
-            # --- replace subtotals on layoutPr ---
+        # --- waterfall-only: rebuild subtotals + prune stale dataPt ---
+        if cx_type is None and series_elems:
+            series_elem = series_elems[0]
             series_elem._remove_layoutPr()
             if chart_data.subtotals:
                 layoutPr = series_elem._add_layoutPr()
@@ -166,8 +202,6 @@ class ChartEx(PartElementProxy):
                     idx_elem = OxmlElement("cx:idx")
                     idx_elem.set("val", str(idx))
                     subtotals_elem.append(idx_elem)
-
-            # --- remove dataPt elements that reference out-of-range indices ---
             num_points = len(chart_data.categories)
             for dataPt in list(series_elem.dataPt_lst):
                 idx = dataPt.get("idx")

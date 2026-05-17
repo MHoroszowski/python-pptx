@@ -1,17 +1,18 @@
 Feature: ChartEx chart type members
   In order to use the ChartEx chart type enumeration safely
   As a developer using python-pptx
-  I need deferred members to fail explicitly and modern members to exist in a private range
+  I need every modern member to exist in a private range and be writable
 
 
-  Scenario Outline: Writer-deferred ChartEx types fail through add_chart
+  Scenario Outline: Every ChartEx type is writable via add_chart (Phase C)
     Given a blank slide
-      And ChartEx waterfall data case q4-total
-     When I attempt to add deferred ChartEx type <member-name>
-     Then adding deferred ChartEx type <member-name> raises NotImplementedError
+     When I add a ChartEx <member-name> chart
+     Then the slide has a ChartEx graphic frame
+      And the saved package contains a ChartEx part
 
-    Examples: writer-deferred ChartEx members
+    Examples: ChartEx writable members
       | member-name |
+      | WATERFALL   |
       | TREEMAP     |
       | SUNBURST    |
       | FUNNEL      |

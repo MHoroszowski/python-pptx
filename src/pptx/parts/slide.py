@@ -208,20 +208,53 @@ class SlidePart(BaseSlidePart):
         part by the returned `rId`.
         """
         chartex_part = ChartExPart.new(self._package)
-        # populate the series on the chart XML
         plotAreaRegion = chartex_part._element.chart.plotArea.plotAreaRegion
-        plotAreaRegion.add_waterfall_series(
-            chart_data.series_name or "Series 1",
-            data_id=0,
-            subtotal_indices=chart_data.subtotals or None,
-        )
-        # populate chart data dimensions
         data_elem = chartex_part._element.chartData.data_lst[0]
-        data_elem.add_string_dimension("cat", chart_data.categories_ref, chart_data.categories)
-        data_elem.add_numeric_dimension(
-            "val", chart_data.values_ref, chart_data.series_values, chart_data.number_format
-        )
-        # embed the Excel workbook
+        name = chart_data.series_name or "Series 1"
+        cx_type = getattr(chart_data, "cx_chart_type", None)
+
+        if cx_type in ("treemap", "sunburst"):
+            if cx_type == "treemap":
+                plotAreaRegion.add_treemap_series(name, data_id=0)
+            else:
+                plotAreaRegion.add_sunburst_series(name, data_id=0)
+            plotAreaRegion.add_hierarchical_string_dimension(
+                data_elem, "cat", chart_data.categories_ref, chart_data.levels
+            )
+            data_elem.add_numeric_dimension(
+                "size", chart_data.values_ref, chart_data.series_values, chart_data.number_format
+            )
+        elif cx_type in ("funnel", "boxWhisker"):
+            if cx_type == "funnel":
+                plotAreaRegion.add_funnel_series(name, data_id=0)
+            else:
+                plotAreaRegion.add_box_whisker_series(name, data_id=0)
+            data_elem.add_string_dimension("cat", chart_data.categories_ref, chart_data.categories)
+            data_elem.add_numeric_dimension(
+                "val", chart_data.values_ref, chart_data.series_values, chart_data.number_format
+            )
+        elif cx_type in ("histogram", "pareto"):
+            if cx_type == "histogram":
+                plotAreaRegion.add_histogram_series(
+                    name, data_id=0, bin_count=chart_data.bin_count, bin_size=chart_data.bin_size
+                )
+            else:
+                plotAreaRegion.add_pareto_series(
+                    name, data_id=0, bin_count=chart_data.bin_count, bin_size=chart_data.bin_size
+                )
+            data_elem.add_numeric_dimension(
+                "val", chart_data.values_ref, chart_data.series_values, chart_data.number_format
+            )
+        else:
+            # Default: Waterfall (Phase B path, unchanged).
+            plotAreaRegion.add_waterfall_series(
+                name, data_id=0, subtotal_indices=chart_data.subtotals or None
+            )
+            data_elem.add_string_dimension("cat", chart_data.categories_ref, chart_data.categories)
+            data_elem.add_numeric_dimension(
+                "val", chart_data.values_ref, chart_data.series_values, chart_data.number_format
+            )
+
         chartex_part.chartex_workbook.update_from_xlsx_blob(chart_data.xlsx_blob)
         return self.relate_to(chartex_part, RT.CHARTEX)
 
