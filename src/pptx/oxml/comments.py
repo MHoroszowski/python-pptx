@@ -54,13 +54,19 @@ def _txBody_text(txBody) -> str:
 def _set_txBody_text(txBody, value: str) -> None:
     """Replace `txBody`'s body with a single paragraph/run holding `value`.
 
-    Existing ``a:p`` children are removed and one fresh
-    ``<a:p><a:r><a:t>value</a:t></a:r></a:p>`` is appended after the
-    (preserved) ``<a:bodyPr>``. This is the minimal round-trip-safe shape
-    PowerPoint accepts for a threaded-comment body.
+    ``<p188:txBody>`` is a DrawingML ``a:CT_TextBody`` whose schema REQUIRES
+    ``<a:bodyPr>`` as its first child. A txBody without it is silently
+    dropped by PowerPoint's threaded-comment reader — the comment never
+    appears in the Comments pane (no repair dialog, just absent). The
+    add-path builds the txBody via ``get_or_add_txBody()`` (a bare
+    ``<p188:txBody/>``), so this function must GUARANTEE the leading
+    ``<a:bodyPr/>``, not merely preserve a pre-existing one. A trailing
+    ``<a:p><a:r><a:t>value</a:t></a:r></a:p>`` follows it.
     """
     for p in list(txBody.findall(qn("a:p"))):
         txBody.remove(p)
+    if txBody.find(qn("a:bodyPr")) is None:
+        txBody.insert(0, parse_xml('<a:bodyPr xmlns:a="%s"/>' % _A_NS))
     p = parse_xml(
         '<a:p xmlns:a="%s"><a:r><a:t>%s</a:t></a:r></a:p>' % (_A_NS, _escape_xml_text(value))
     )

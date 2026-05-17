@@ -626,5 +626,53 @@ class DescribeLegacyModernCoexistence:
         assert list(legacy.replies) == []
 
 
+class DescribeThreadedCommentBodyPrRegression:
+    """Regression: <p188:txBody> MUST carry <a:bodyPr> (issue #25 silent-drop).
+
+    The add-path builds txBody via get_or_add_txBody() (a bare element);
+    a CT_TextBody without <a:bodyPr> is schema-malformed and PowerPoint
+    SILENTLY drops the comment (no repair dialog, comment just absent —
+    caught only by maintainer visual review). Trinity was green while
+    every comment was invisible. This locks the fix.
+    """
+
+    def _modern_xml(self):
+        import io
+        import zipfile
+
+        from pptx import Presentation
+
+        prs = Presentation()
+        s = prs.slides.add_slide(prs.slide_layouts[1])
+        c = s.comments.add("Body check", author="Rev")
+        c.replies.add("reply body check", author="Rev2")
+        buf = io.BytesIO()
+        prs.save(buf)
+        buf.seek(0)
+        z = zipfile.ZipFile(buf)
+        name = next(n for n in z.namelist() if "modernComment" in n)
+        return z.read(name).decode()
+
+    def it_emits_bodyPr_in_every_comment_txBody(self):
+        import re
+
+        xml = self._modern_xml()
+        bodies = re.findall(r"<p188:txBody>(.*?)</p188:txBody>", xml, re.S)
+        assert bodies, "expected at least one <p188:txBody>"
+        assert all("bodyPr" in b for b in bodies), (
+            "every threaded-comment/reply txBody must contain <a:bodyPr> "
+            "or PowerPoint silently drops the comment"
+        )
+
+    def it_places_bodyPr_before_the_paragraph(self):
+        import re
+
+        xml = self._modern_xml()
+        body = re.search(r"<p188:txBody>(.*?)</p188:txBody>", xml, re.S).group(1)
+        assert body.index("bodyPr") < body.index("<a:p"), (
+            "<a:bodyPr> must precede <a:p> (CT_TextBody child order)"
+        )
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
