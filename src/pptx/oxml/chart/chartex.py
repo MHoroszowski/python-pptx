@@ -200,6 +200,19 @@ class CT_PlotArea(BaseOxmlElement):
         plotArea.append(val_axis)
         return plotArea
 
+    def remove_axes(self):
+        """Remove every `<cx:axis>` child.
+
+        Non-Cartesian ChartEx layouts (treemap, sunburst, regionMap) have no
+        category/value axes; PowerPoint flags a repair if a treemap/sunburst
+        declares them. Axis layouts (waterfall, clusteredColumn, boxWhisker,
+        paretoLine, funnel) keep the default axes.
+        """
+        from pptx.oxml.ns import qn
+
+        for ax in self.findall(qn("cx:axis")):
+            self.remove(ax)
+
 
 class CT_PlotAreaRegion(BaseOxmlElement):
     """

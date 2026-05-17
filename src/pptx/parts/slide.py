@@ -218,6 +218,9 @@ class SlidePart(BaseSlidePart):
                 plotAreaRegion.add_treemap_series(name, data_id=0)
             else:
                 plotAreaRegion.add_sunburst_series(name, data_id=0)
+            # treemap/sunburst are non-Cartesian — no category/value axes
+            # (PowerPoint repairs a treemap/sunburst that declares axes).
+            chartex_part._element.chart.plotArea.remove_axes()
             plotAreaRegion.add_hierarchical_string_dimension(
                 data_elem, "cat", chart_data.categories_ref, chart_data.levels
             )
