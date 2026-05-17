@@ -674,5 +674,90 @@ class DescribeThreadedCommentBodyPrRegression:
         )
 
 
+class DescribeThreadedCommentPowerPointContract:
+    """Regression: the modern-comment OOXML must match PowerPoint ground truth.
+
+    Captured 2026-05-17 from a threaded comment PowerPoint for Mac itself
+    authored+saved. Three string axes plus a slide-binding element were
+    inferred wrong in Waves 1-2 (content type ``threadedComments+xml``,
+    reltypes ``threadedComment``/``threadedCommentAuthors``, and a missing
+    ``<pc:sldMkLst>``). With any of them wrong PowerPoint silently fails to
+    load/bind the part → empty Comments pane while the test trinity is
+    green. This locks every axis to the PowerPoint-emitted contract.
+    """
+
+    def it_uses_the_powerpoint_content_type_and_reltypes(self):
+        assert CT.PML_THREADED_COMMENTS == "application/vnd.ms-powerpoint.comments+xml"
+        assert RT.THREADED_COMMENT == (
+            "http://schemas.microsoft.com/office/2018/10/relationships/comments"
+        )
+        assert RT.AUTHORS == "http://schemas.microsoft.com/office/2018/10/relationships/authors"
+
+    def _round_trip_zip(self):
+        prs = Presentation()
+        s = prs.slides.add_slide(prs.slide_layouts[1])
+        s.comments.add("Looks great! Ship it.", author="Alex Reviewer")
+        buf = io.BytesIO()
+        prs.save(buf)
+        buf.seek(0)
+        import zipfile
+
+        return zipfile.ZipFile(buf), s.slide_id
+
+    def it_stamps_the_powerpoint_content_type_in_content_types(self):
+        z, _ = self._round_trip_zip()
+        ctypes = z.read("[Content_Types].xml").decode()
+        assert "application/vnd.ms-powerpoint.comments+xml" in ctypes
+        assert "threadedComments+xml" not in ctypes
+
+    def it_relates_slide_to_part_and_presentation_to_authors_by_pp_reltype(self):
+        z, _ = self._round_trip_zip()
+        slide_rels = z.read("ppt/slides/_rels/slide1.xml.rels").decode()
+        prs_rels = z.read("ppt/_rels/presentation.xml.rels").decode()
+        assert "/2018/10/relationships/comments" in slide_rels
+        assert "/2018/10/relationships/threadedComment" not in slide_rels
+        assert "/2018/10/relationships/authors" in prs_rels
+        assert "threadedCommentAuthors" not in prs_rels
+
+    def it_binds_each_comment_to_its_slide_via_sldMkLst(self):
+        import re
+
+        z, slide_id = self._round_trip_zip()
+        name = next(n for n in z.namelist() if "modernComment" in n)
+        xml = z.read(name).decode()
+        # <pc:sldMkLst> present with <pc:docMk/> and <pc:sldMk sldId=...>
+        assert "sldMkLst" in xml, "every <p188:cm> needs a <pc:sldMkLst> slide binding"
+        assert "docMk" in xml
+        assert "sldMk" in xml
+        m = re.search(r'<pc:sldMk[^>]*sldId="(\d+)"', xml)
+        assert m is not None, "<pc:sldMk> must carry the slide's sldId"
+        assert int(m.group(1)) == slide_id, (
+            "sldMk/@sldId must equal the slide's <p:sldId>/@id (%d) so "
+            "PowerPoint binds the comment to the right slide" % slide_id
+        )
+
+    def it_places_sldMkLst_before_txBody_in_child_order(self):
+        z, _ = self._round_trip_zip()
+        name = next(n for n in z.namelist() if "modernComment" in n)
+        xml = z.read(name).decode()
+        assert xml.index("sldMkLst") < xml.index("txBody"), (
+            "<pc:sldMkLst> must precede <p188:txBody> (PowerPoint child order)"
+        )
+
+    def it_keeps_exactly_one_sldMkLst_when_set_twice(self):
+        # Cato low-finding lock: set_slide_marker must REPLACE, not prepend a
+        # second <pc:sldMkLst>, if invoked again on the same comment element.
+        prs = Presentation()
+        s = prs.slides.add_slide(prs.slide_layouts[1])
+        c = s.comments.add("once", author="Rev")
+        c._cm.set_slide_marker(s.slide_id)
+        c._cm.set_slide_marker(s.slide_id)
+        from pptx.oxml.ns import qn
+
+        assert len(c._cm.findall(qn("pc:sldMkLst"))) == 1, (
+            "set_slide_marker must be idempotent (exactly one <pc:sldMkLst>)"
+        )
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))

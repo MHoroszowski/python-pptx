@@ -322,8 +322,19 @@ class CT_ThreadedComment(BaseOxmlElement):
     ``<p188:txBody>`` rich-text body, and an optional ``<p188:replyLst>``
     holding the reply thread. ``status`` (e.g. ``"resolved"``) marks a
     closed thread.
+
+    GROUND TRUTH (2026-05-17, captured from a comment PowerPoint for Mac
+    authored+saved): the FIRST child of every top-level ``<p188:cm>`` is a
+    ``<pc:sldMkLst>`` slide-binding marker
+    (``<pc:docMk/><pc:sldMk cId=".." sldId=".."/>``, ns
+    ``http://schemas.microsoft.com/office/powerpoint/2013/main/command``).
+    This is how PowerPoint binds a comment to its slide — NOT the per-slide
+    relationship and NOT the fork-private ``extLst`` anchor. Omitting it
+    leaves the comment unbound and PowerPoint does not render it (issue #25
+    empty-Comments-pane root cause). Replies do not carry their own marker.
     """
 
+    sldMkLst = ZeroOrOne("pc:sldMkLst", successors=("p188:txBody", "p188:replyLst", "p188:extLst"))
     txBody = ZeroOrOne("p188:txBody", successors=("p188:replyLst", "p188:extLst"))
     replyLst: "CT_ThreadedCommentReplyList | None" = ZeroOrOne(  # pyright: ignore
         "p188:replyLst", successors=("p188:extLst",)
@@ -385,6 +396,28 @@ class CT_ThreadedComment(BaseOxmlElement):
         anchor = ext.makeelement(self._ANCHOR_TAG, {"shapeId": str(shape_id)})
         ext.append(anchor)
         extLst.append(ext)
+
+    def set_slide_marker(self, slide_id: int, c_id: int = 0) -> None:
+        """Set the ``<pc:sldMkLst>`` binding this comment to slide `slide_id`.
+
+        Builds ``<pc:sldMkLst><pc:docMk/><pc:sldMk cId=c_id sldId=slide_id/>
+        </pc:sldMkLst>`` and places it as the FIRST child of this
+        ``<p188:cm>`` (before ``<p188:txBody>``), matching the structure
+        PowerPoint itself emits. ``slide_id`` is the slide's
+        ``<p:sldId>/@id`` (e.g. 256 for the first slide); ``c_id`` is the
+        collaboration/change id PowerPoint stamps ``0`` for a locally
+        authored comment. Replaces any pre-existing marker (idempotent).
+        """
+        existing = self.sldMkLst
+        if existing is not None:
+            self.remove(existing)
+        self.insert(
+            0,
+            parse_xml(
+                "<pc:sldMkLst %s><pc:docMk/><pc:sldMk "
+                'cId="%d" sldId="%d"/></pc:sldMkLst>' % (nsdecls("pc"), c_id, slide_id)
+            ),
+        )
 
     @classmethod
     def new(cls, comment_id: str, author_id: str, created: str) -> CT_ThreadedComment:

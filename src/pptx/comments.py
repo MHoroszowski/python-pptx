@@ -393,6 +393,11 @@ class Comments:
         part = self._slide.part.modern_comments_part
         author_guid = self._slide._get_or_add_author_guid(author)
         cm = part.add_comment(_new_guid(), author_guid, _now_iso(), text)
+        # GROUND TRUTH (2026-05-17): PowerPoint binds a modern comment to its
+        # slide via a `<pc:sldMkLst>` carrying the slide's `<p:sldId>/@id`.
+        # Without it the comment never renders in the Comments pane (issue
+        # #25 root cause). slide_id is the integer sldId from presentation.xml.
+        cm.set_slide_marker(self._slide.slide_id)
         if anchor is not None and getattr(anchor, "shape_id", None) is not None:
             cm.anchorShapeId = anchor.shape_id
         return Comment(cm, self._slide)
