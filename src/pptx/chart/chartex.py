@@ -168,12 +168,13 @@ class ChartEx(PartElementProxy):
             new_data.add_numeric_dimension(
                 "size", chart_data.values_ref, chart_data.series_values, chart_data.number_format
             )
-        elif cx_type in ("histogram", "pareto"):
+        elif cx_type == "histogram":
+            # numeric raw values, binned — numDim only, no strDim
             new_data.add_numeric_dimension(
                 "val", chart_data.values_ref, chart_data.series_values, chart_data.number_format
             )
         else:
-            # waterfall / funnel / boxWhisker: cat strDim + val numDim
+            # waterfall / funnel / boxWhisker / pareto: cat strDim + val numDim
             new_data.add_string_dimension("cat", chart_data.categories_ref, chart_data.categories)
             new_data.add_numeric_dimension(
                 "val", chart_data.values_ref, chart_data.series_values, chart_data.number_format

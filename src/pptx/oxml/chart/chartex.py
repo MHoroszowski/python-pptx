@@ -213,6 +213,27 @@ class CT_PlotArea(BaseOxmlElement):
         for ax in self.findall(qn("cx:axis")):
             self.remove(ax)
 
+    def add_pareto_percentage_axis(self):
+        """Append the 3rd axis Pareto needs — a 0–1 percentage value axis (id=2).
+
+        Mirrors PowerPoint's authored Pareto (issue #14 ground truth):
+        `<cx:axis id="2"><cx:valScaling max="1" min="0"/>
+        <cx:units unit="percentage"/><cx:tickLabels/></cx:axis>`.
+        """
+        from lxml import etree
+
+        from pptx.oxml.ns import qn
+
+        axis = etree.SubElement(self, qn("cx:axis"))
+        axis.set("id", "2")
+        valScaling = etree.SubElement(axis, qn("cx:valScaling"))
+        valScaling.set("max", "1")
+        valScaling.set("min", "0")
+        units = etree.SubElement(axis, qn("cx:units"))
+        units.set("unit", "percentage")
+        etree.SubElement(axis, qn("cx:tickLabels"))
+        return axis
+
 
 class CT_PlotAreaRegion(BaseOxmlElement):
     """
@@ -273,13 +294,26 @@ class CT_PlotAreaRegion(BaseOxmlElement):
 
         return series
 
-    def _new_cx_series(self, layout_id: str, series_name: str, data_id: int = 0):
-        """Append a `<cx:series>` skeleton (tx, dataLabels, dataId) and return it.
+    def _new_cx_series(
+        self,
+        layout_id: str,
+        series_name: str,
+        series_name_ref: str = "Sheet1!$B$1",
+        data_id: int = 0,
+        with_data_labels: bool = True,
+    ):
+        """Append a `<cx:series>` skeleton (tx, [dataLabels], dataId) and return it.
 
-        Shared by every ChartEx series layout. The `<cx:layoutPr>` (and any
-        extra series) is added by the per-type method after this returns, so
-        the XSD `CT_Series` element order (tx, dataLabels, dataId, layoutPr) is
-        always respected.
+        Shared by every ChartEx series layout. `series_name_ref` is the Excel
+        cell holding the series name — it MUST match the data container's
+        column layout (waterfall/funnel/boxwhisker put data in cols A+B so the
+        name is in B1; histogram/pareto put values in col A so the name is in
+        A1). Pointing `<cx:tx>/<cx:f>` at an empty column triggers a PowerPoint
+        repair (the histogram/pareto defect — confirmed via PowerPoint
+        ground-truth diff, issue #14). `with_data_labels=False` omits
+        `<cx:dataLabels>` for layouts where PowerPoint emits none (histogram,
+        pareto). The `<cx:layoutPr>` and any extra series are added by the
+        per-type method after this returns, preserving XSD `CT_Series` order.
         """
         import uuid
 
@@ -292,50 +326,59 @@ class CT_PlotAreaRegion(BaseOxmlElement):
         tx = etree.SubElement(series, qn("cx:tx"))
         txData = etree.SubElement(tx, qn("cx:txData"))
         f_elem = etree.SubElement(txData, qn("cx:f"))
-        f_elem.text = "Sheet1!$B$1"
+        f_elem.text = series_name_ref
         v_elem = etree.SubElement(txData, qn("cx:v"))
         v_elem.text = series_name
 
-        dataLabels = etree.SubElement(series, qn("cx:dataLabels"))
-        dataLabels.set("pos", "outEnd")
-        visibility = etree.SubElement(dataLabels, qn("cx:visibility"))
-        visibility.set("seriesName", "0")
-        visibility.set("categoryName", "0")
-        visibility.set("value", "1")
+        if with_data_labels:
+            dataLabels = etree.SubElement(series, qn("cx:dataLabels"))
+            dataLabels.set("pos", "outEnd")
+            visibility = etree.SubElement(dataLabels, qn("cx:visibility"))
+            visibility.set("seriesName", "0")
+            visibility.set("categoryName", "0")
+            visibility.set("value", "1")
 
         dataId_elem = etree.SubElement(series, qn("cx:dataId"))
         dataId_elem.set("val", str(data_id))
         return series
 
-    def add_treemap_series(self, series_name: str, data_id: int = 0):
+    def add_treemap_series(
+        self, series_name: str, series_name_ref: str = "Sheet1!$B$1", data_id: int = 0
+    ):
         """Add a treemap series (`layoutId="treemap"`)."""
         from lxml import etree
 
-        series = self._new_cx_series("treemap", series_name, data_id)
+        series = self._new_cx_series("treemap", series_name, series_name_ref, data_id)
         layoutPr = etree.SubElement(series, qn("cx:layoutPr"))
         pll = etree.SubElement(layoutPr, qn("cx:parentLabelLayout"))
         pll.set("val", "banner")
         return series
 
-    def add_sunburst_series(self, series_name: str, data_id: int = 0):
+    def add_sunburst_series(
+        self, series_name: str, series_name_ref: str = "Sheet1!$B$1", data_id: int = 0
+    ):
         """Add a sunburst series (`layoutId="sunburst"`)."""
         from lxml import etree
 
-        series = self._new_cx_series("sunburst", series_name, data_id)
+        series = self._new_cx_series("sunburst", series_name, series_name_ref, data_id)
         layoutPr = etree.SubElement(series, qn("cx:layoutPr"))
         pll = etree.SubElement(layoutPr, qn("cx:parentLabelLayout"))
         pll.set("val", "none")
         return series
 
-    def add_funnel_series(self, series_name: str, data_id: int = 0):
+    def add_funnel_series(
+        self, series_name: str, series_name_ref: str = "Sheet1!$B$1", data_id: int = 0
+    ):
         """Add a funnel series (`layoutId="funnel"`)."""
-        return self._new_cx_series("funnel", series_name, data_id)
+        return self._new_cx_series("funnel", series_name, series_name_ref, data_id)
 
-    def add_box_whisker_series(self, series_name: str, data_id: int = 0):
+    def add_box_whisker_series(
+        self, series_name: str, series_name_ref: str = "Sheet1!$B$1", data_id: int = 0
+    ):
         """Add a box & whisker series (`layoutId="boxWhisker"`)."""
         from lxml import etree
 
-        series = self._new_cx_series("boxWhisker", series_name, data_id)
+        series = self._new_cx_series("boxWhisker", series_name, series_name_ref, data_id)
         layoutPr = etree.SubElement(series, qn("cx:layoutPr"))
         vis = etree.SubElement(layoutPr, qn("cx:visibility"))
         vis.set("connectorLines", "1")
@@ -350,19 +393,26 @@ class CT_PlotAreaRegion(BaseOxmlElement):
     def add_histogram_series(
         self,
         series_name: str,
+        series_name_ref: str = "Sheet1!$A$1",
         data_id: int = 0,
         bin_count: int | None = None,
         bin_size: float | None = None,
     ):
-        """Add a histogram series (`layoutId="clusteredColumn"` + `<cx:binning>`)."""
+        """Add a histogram series (`layoutId="clusteredColumn"` + `<cx:binning>`).
+
+        PowerPoint emits no `<cx:dataLabels>` for a histogram (ground-truth
+        diff, issue #14), so this series omits them.
+        """
         from lxml import etree
 
-        series = self._new_cx_series("clusteredColumn", series_name, data_id)
+        series = self._new_cx_series(
+            "clusteredColumn", series_name, series_name_ref, data_id, with_data_labels=False
+        )
         layoutPr = etree.SubElement(series, qn("cx:layoutPr"))
         binning = etree.SubElement(layoutPr, qn("cx:binning"))
         binning.set("intervalClosed", "r")
         # CT_Binning child is an xsd:choice of binSize | binCount (both optional →
-        # automatic binning when neither given).
+        # automatic binning, matching PowerPoint's default, when neither given).
         if bin_size is not None:
             bs = etree.SubElement(binning, qn("cx:binSize"))
             bs.text = str(bin_size)
@@ -371,25 +421,39 @@ class CT_PlotAreaRegion(BaseOxmlElement):
             bc.text = str(bin_count)
         return series
 
-    def add_pareto_series(
-        self,
-        series_name: str,
-        data_id: int = 0,
-        bin_count: int | None = None,
-        bin_size: float | None = None,
+    def add_pareto_pair(
+        self, series_name: str, series_name_ref: str = "Sheet1!$B$1", data_id: int = 0
     ):
-        """Add the Pareto pair: a binned `clusteredColumn` + a `paretoLine`.
+        """Add the PowerPoint Pareto pair (ground-truth structure, issue #14).
 
-        Both series reference the same `data_id`. Returns the histogram series.
+        - A `clusteredColumn` series over categorical data with
+          `<cx:layoutPr><cx:aggregation/></cx:layoutPr>` and `<cx:axisId val="1"/>`
+          (no dataLabels, no binning — Pareto aggregates by category).
+        - A minimal `paretoLine` series: `ownerIdx="0"` + `<cx:axisId val="2"/>`
+          only (no tx/dataId/layoutPr) — it overlays the column series and
+          reads axis 2 (the percentage value axis added on the plot area).
+
+        Returns the clusteredColumn series.
         """
         from lxml import etree
 
-        hist = self.add_histogram_series(series_name, data_id, bin_count, bin_size)
-        # paretoLine cumulative series over the same data
-        line = self._new_cx_series("paretoLine", series_name, data_id)
-        layoutPr = etree.SubElement(line, qn("cx:layoutPr"))
+        col = self._new_cx_series(
+            "clusteredColumn", series_name, series_name_ref, data_id, with_data_labels=False
+        )
+        layoutPr = etree.SubElement(col, qn("cx:layoutPr"))
         etree.SubElement(layoutPr, qn("cx:aggregation"))
-        return hist
+        axisId = etree.SubElement(col, qn("cx:axisId"))
+        axisId.set("val", "1")
+
+        import uuid
+
+        line = etree.SubElement(self, qn("cx:series"))
+        line.set("layoutId", "paretoLine")
+        line.set("ownerIdx", "0")
+        line.set("uniqueId", f"{{{uuid.uuid4()}}}")
+        line_axisId = etree.SubElement(line, qn("cx:axisId"))
+        line_axisId.set("val", "2")
+        return col
 
     def add_hierarchical_string_dimension(
         self, data_elem, dim_type: str, formula: str, levels: list[list[str]]

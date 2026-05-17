@@ -56,13 +56,21 @@ def _hist(cls):
     return cd
 
 
+def _pareto(cls):
+    # PowerPoint Pareto is categorical (aggregate by category) per ground truth.
+    cd = cls()
+    cd.categories = ["Defect A", "Defect B", "Defect C", "Defect D"]
+    cd.add_series("Count", [45, 30, 15, 10])
+    return cd
+
+
 _BUILDERS = {
     XL_CHART_TYPE.TREEMAP: (lambda: _hier(TreemapChartData), "treemap"),
     XL_CHART_TYPE.SUNBURST: (lambda: _hier(SunburstChartData), "sunburst"),
     XL_CHART_TYPE.FUNNEL: (lambda: _cat(FunnelChartData), "funnel"),
     XL_CHART_TYPE.BOX_WHISKER: (lambda: _cat(BoxWhiskerChartData), "boxWhisker"),
     XL_CHART_TYPE.HISTOGRAM: (lambda: _hist(HistogramChartData), "clusteredColumn"),
-    XL_CHART_TYPE.PARETO: (lambda: _hist(ParetoChartData), "clusteredColumn"),
+    XL_CHART_TYPE.PARETO: (lambda: _pareto(ParetoChartData), "clusteredColumn"),
 }
 _ALL = list(_BUILDERS)
 

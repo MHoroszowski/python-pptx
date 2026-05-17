@@ -208,19 +208,21 @@ class SlidePart(BaseSlidePart):
         part by the returned `rId`.
         """
         chartex_part = ChartExPart.new(self._package)
-        plotAreaRegion = chartex_part._element.chart.plotArea.plotAreaRegion
+        plotArea = chartex_part._element.chart.plotArea
+        plotAreaRegion = plotArea.plotAreaRegion
         data_elem = chartex_part._element.chartData.data_lst[0]
         name = chart_data.series_name or "Series 1"
+        name_ref = chart_data.series_name_ref
         cx_type = getattr(chart_data, "cx_chart_type", None)
 
         if cx_type in ("treemap", "sunburst"):
             if cx_type == "treemap":
-                plotAreaRegion.add_treemap_series(name, data_id=0)
+                plotAreaRegion.add_treemap_series(name, name_ref, data_id=0)
             else:
-                plotAreaRegion.add_sunburst_series(name, data_id=0)
+                plotAreaRegion.add_sunburst_series(name, name_ref, data_id=0)
             # treemap/sunburst are non-Cartesian — no category/value axes
             # (PowerPoint repairs a treemap/sunburst that declares axes).
-            chartex_part._element.chart.plotArea.remove_axes()
+            plotArea.remove_axes()
             plotAreaRegion.add_hierarchical_string_dimension(
                 data_elem, "cat", chart_data.categories_ref, chart_data.levels
             )
@@ -229,22 +231,32 @@ class SlidePart(BaseSlidePart):
             )
         elif cx_type in ("funnel", "boxWhisker"):
             if cx_type == "funnel":
-                plotAreaRegion.add_funnel_series(name, data_id=0)
+                plotAreaRegion.add_funnel_series(name, name_ref, data_id=0)
             else:
-                plotAreaRegion.add_box_whisker_series(name, data_id=0)
+                plotAreaRegion.add_box_whisker_series(name, name_ref, data_id=0)
             data_elem.add_string_dimension("cat", chart_data.categories_ref, chart_data.categories)
             data_elem.add_numeric_dimension(
                 "val", chart_data.values_ref, chart_data.series_values, chart_data.number_format
             )
-        elif cx_type in ("histogram", "pareto"):
-            if cx_type == "histogram":
-                plotAreaRegion.add_histogram_series(
-                    name, data_id=0, bin_count=chart_data.bin_count, bin_size=chart_data.bin_size
-                )
-            else:
-                plotAreaRegion.add_pareto_series(
-                    name, data_id=0, bin_count=chart_data.bin_count, bin_size=chart_data.bin_size
-                )
+        elif cx_type == "histogram":
+            # numeric raw values, binned; no strDim, no dataLabels (PP ground truth)
+            plotAreaRegion.add_histogram_series(
+                name,
+                name_ref,
+                data_id=0,
+                bin_count=chart_data.bin_count,
+                bin_size=chart_data.bin_size,
+            )
+            data_elem.add_numeric_dimension(
+                "val", chart_data.values_ref, chart_data.series_values, chart_data.number_format
+            )
+        elif cx_type == "pareto":
+            # PowerPoint Pareto: categorical (strDim cat + numDim val),
+            # aggregation column series + minimal paretoLine over a 3rd
+            # percentage axis (issue #14 ground truth).
+            plotAreaRegion.add_pareto_pair(name, name_ref, data_id=0)
+            plotArea.add_pareto_percentage_axis()
+            data_elem.add_string_dimension("cat", chart_data.categories_ref, chart_data.categories)
             data_elem.add_numeric_dimension(
                 "val", chart_data.values_ref, chart_data.series_values, chart_data.number_format
             )

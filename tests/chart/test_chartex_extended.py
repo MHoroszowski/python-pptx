@@ -162,9 +162,13 @@ class DescribeAddChartDispatch:
             cd = {"FUNNEL": FunnelChartData, "BOX_WHISKER": BoxWhiskerChartData}[name]()
             cd.categories = ["a", "b"]
             cd.add_series("S", [1, 2])
-        else:
-            cd = {"HISTOGRAM": HistogramChartData, "PARETO": ParetoChartData}[name]()
+        elif name == "HISTOGRAM":
+            cd = HistogramChartData()
             cd.add_series("S", [1, 2, 3, 4], bin_count=2)
+        else:  # PARETO — categorical per PowerPoint ground truth
+            cd = ParetoChartData()
+            cd.categories = ["a", "b"]
+            cd.add_series("S", [3, 1])
         gf = slide.shapes.add_chart(
             getattr(XL_CHART_TYPE, name), Inches(1), Inches(1), Inches(5), Inches(3), cd
         )

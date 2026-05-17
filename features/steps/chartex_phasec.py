@@ -43,11 +43,16 @@ def _data_for(member_name):
         cd.categories = ["Leads", "Qualified", "Won"]
         cd.add_series("Pipe", [100, 60, 25])
         return getattr(XL_CHART_TYPE, m), cd
-    if m in ("HISTOGRAM", "PARETO"):
-        cls = HistogramChartData if m == "HISTOGRAM" else ParetoChartData
-        cd = cls()
+    if m == "HISTOGRAM":
+        cd = HistogramChartData()
         cd.add_series("Scores", [55, 62, 71, 73, 88, 91, 64, 78], bin_count=4)
-        return getattr(XL_CHART_TYPE, m), cd
+        return XL_CHART_TYPE.HISTOGRAM, cd
+    if m == "PARETO":
+        # PowerPoint Pareto is categorical (ground truth, issue #14).
+        cd = ParetoChartData()
+        cd.categories = ["Defect A", "Defect B", "Defect C", "Defect D"]
+        cd.add_series("Count", [45, 30, 15, 10])
+        return XL_CHART_TYPE.PARETO, cd
     raise KeyError(m)
 
 

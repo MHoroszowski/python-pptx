@@ -1219,7 +1219,19 @@ class HistogramChartData:
         return _cx_xlsx([(self._series_name or "Series 1", self._series_values)])
 
 
-class ParetoChartData(HistogramChartData):
-    """Data container for a ChartEx Pareto chart (histogram + cumulative line)."""
+class ParetoChartData(_CategoryChartExData):
+    """Data container for a ChartEx Pareto chart.
+
+    PowerPoint's Pareto aggregates by **category** (not numeric bins) and
+    overlays a cumulative-percentage line — so this is category+value shaped
+    (like Funnel), confirmed against PowerPoint-authored ground truth
+    (issue #14).
+
+    Example::
+
+        cd = ParetoChartData()
+        cd.categories = ['Defect A', 'Defect B', 'Defect C', 'Defect D']
+        cd.add_series('Count', [45, 30, 15, 10])
+    """
 
     cx_chart_type = "pareto"
