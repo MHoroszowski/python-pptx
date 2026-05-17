@@ -330,6 +330,7 @@ _RELS_NS = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships
 _P_NS = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
 _P14_NS = "{http://schemas.microsoft.com/office/powerpoint/2010/main}"
 _OOXML_LAYOUT_ID_FLOOR = 2147483648  # uint32 floor per ECMA-376 sec 19.2.1.27.
+_UINT32_MAX = 4294967295  # ceiling shared by all slide-master/layout id allocators
 
 # Reltypes filtered out during slide duplication. NOTES_SLIDE is wired
 # explicitly by |Slides.duplicate| so the new notes-slide back-references
@@ -903,6 +904,13 @@ def _renumber_sldLayoutIds(element, used_ids: set[int]) -> None:
         return
     next_id = max(used_ids | {_OOXML_LAYOUT_ID_FLOOR - 1}) + 1
     for sli in sldLayoutIdLst.findall(f"{_P_NS}sldLayoutId"):
+        if next_id > _UINT32_MAX:
+            next_id = next(
+                (n for n in range(_OOXML_LAYOUT_ID_FLOOR, _UINT32_MAX + 1) if n not in used_ids),
+                None,
+            )
+            if next_id is None:
+                raise ValueError("slide-layout id pool exhausted")
         sli.set("id", str(next_id))
         used_ids.add(next_id)
         next_id += 1
@@ -964,7 +972,18 @@ def _add_sldLayoutId_to_master(master_part, rId: str) -> None:
         if raw is not None:
             with contextlib.suppress(ValueError):
                 used_ids.append(int(raw))
-    next_id = max(used_ids + [2147483647]) + 1
+    # ---high-range allocation consistent with CT_SlideLayoutIdList._next_id:
+    #    floor at _OOXML_LAYOUT_ID_FLOOR so the id is disjoint from the low
+    #    p:sldId pool; ceiling-guarded at uint32 max with a scan fallback.---
+    next_id = max(used_ids + [_OOXML_LAYOUT_ID_FLOOR - 1]) + 1
+    if next_id > _UINT32_MAX:
+        seen = set(used_ids)
+        next_id = next(
+            (n for n in range(_OOXML_LAYOUT_ID_FLOOR, _UINT32_MAX + 1) if n not in seen),
+            None,
+        )
+        if next_id is None:
+            raise ValueError("slide-layout id pool exhausted")
     sldLayoutId = sldLayoutIdLst._add_sldLayoutId()
     sldLayoutId.rId = rId
     sldLayoutId.set("id", str(next_id))
