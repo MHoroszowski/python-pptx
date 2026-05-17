@@ -17,6 +17,7 @@ from pptx.opc.packuri import PackURI
 from pptx.oxml.slide import CT_NotesMaster, CT_NotesSlide, CT_Slide, CT_SlideLayout
 from pptx.oxml.theme import CT_OfficeStyleSheet
 from pptx.parts.chart import ChartPart
+from pptx.parts.chartex import ChartExPart
 from pptx.parts.comments import CommentsPart, ModernCommentsPart
 from pptx.parts.embeddedpackage import EmbeddedPackagePart
 from pptx.parts.image import Image, ImagePart
@@ -27,7 +28,7 @@ if TYPE_CHECKING:
     from pptx.parts.presentation import PresentationPart
 
 if TYPE_CHECKING:
-    from pptx.chart.data import ChartData
+    from pptx.chart.data import ChartData, WaterfallChartData
     from pptx.enum.chart import XL_CHART_TYPE
     from pptx.media import Video
     from pptx.parts.image import Image, ImagePart
@@ -199,6 +200,30 @@ class SlidePart(BaseSlidePart):
         part by `rId`.
         """
         return self.relate_to(ChartPart.new(chart_type, chart_data, self._package), RT.CHART)
+
+    def add_chartex_part(self, chart_data: WaterfallChartData) -> str:
+        """Return str rId of new |ChartExPart| containing a waterfall chart.
+
+        The chart depicts `chart_data` and is related to the slide contained in this
+        part by the returned `rId`.
+        """
+        chartex_part = ChartExPart.new(self._package)
+        # populate the series on the chart XML
+        plotAreaRegion = chartex_part._element.chart.plotArea.plotAreaRegion
+        plotAreaRegion.add_waterfall_series(
+            chart_data.series_name or "Series 1",
+            data_id=0,
+            subtotal_indices=chart_data.subtotals or None,
+        )
+        # populate chart data dimensions
+        data_elem = chartex_part._element.chartData.data_lst[0]
+        data_elem.add_string_dimension("cat", chart_data.categories_ref, chart_data.categories)
+        data_elem.add_numeric_dimension(
+            "val", chart_data.values_ref, chart_data.series_values, chart_data.number_format
+        )
+        # embed the Excel workbook
+        chartex_part.chartex_workbook.update_from_xlsx_blob(chart_data.xlsx_blob)
+        return self.relate_to(chartex_part, RT.CHARTEX)
 
     def add_embedded_ole_object_part(
         self, prog_id: PROG_ID | str, ole_object_file: str | IO[bytes]

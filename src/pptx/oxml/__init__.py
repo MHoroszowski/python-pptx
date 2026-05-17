@@ -583,3 +583,64 @@ register_element_cls("p:txBody", CT_TextBody)
 from pptx.oxml.theme import CT_OfficeStyleSheet  # noqa: E402
 
 register_element_cls("a:theme", CT_OfficeStyleSheet)
+
+
+from pptx.oxml.chart.chartex import (  # noqa: E402
+    CT_Axis,
+    CT_CategoryAxisScaling,
+    CT_Chart,
+    CT_ChartData,
+    CT_ChartSpace,
+    CT_ChartTitle,
+    CT_Data,
+    CT_DataId,
+    CT_DataLabels,
+    CT_DataLabelVisibilities,
+    CT_ExternalData,
+    CT_Formula,
+    CT_Gridlines,
+    CT_Legend,
+    CT_NumericDimension,
+    CT_PlotArea,
+    CT_PlotAreaRegion,
+    CT_Series,
+    CT_SeriesLayoutProperties,
+    CT_StringDimension,
+    CT_StringLevel,
+    CT_StringValue,
+    CT_SubtotalIndex,
+    CT_Subtotals,
+    CT_Text,
+    CT_TextData,
+    CT_TickLabels,
+    CT_ValueAxisScaling,
+)
+
+register_element_cls("cx:axis", CT_Axis)
+register_element_cls("cx:catScaling", CT_CategoryAxisScaling)
+register_element_cls("cx:chart", CT_Chart)
+register_element_cls("cx:chartData", CT_ChartData)
+register_element_cls("cx:chartSpace", CT_ChartSpace)
+register_element_cls("cx:data", CT_Data)
+register_element_cls("cx:dataId", CT_DataId)
+register_element_cls("cx:dataLabels", CT_DataLabels)
+register_element_cls("cx:externalData", CT_ExternalData)
+register_element_cls("cx:f", CT_Formula)
+register_element_cls("cx:idx", CT_SubtotalIndex)
+register_element_cls("cx:layoutPr", CT_SeriesLayoutProperties)
+register_element_cls("cx:legend", CT_Legend)
+register_element_cls("cx:lvl", CT_StringLevel)
+register_element_cls("cx:majorGridlines", CT_Gridlines)
+register_element_cls("cx:numDim", CT_NumericDimension)
+register_element_cls("cx:plotArea", CT_PlotArea)
+register_element_cls("cx:plotAreaRegion", CT_PlotAreaRegion)
+register_element_cls("cx:pt", CT_StringValue)
+register_element_cls("cx:series", CT_Series)
+register_element_cls("cx:strDim", CT_StringDimension)
+register_element_cls("cx:subtotals", CT_Subtotals)
+register_element_cls("cx:tickLabels", CT_TickLabels)
+register_element_cls("cx:title", CT_ChartTitle)
+register_element_cls("cx:tx", CT_Text)
+register_element_cls("cx:txData", CT_TextData)
+register_element_cls("cx:valScaling", CT_ValueAxisScaling)
+register_element_cls("cx:visibility", CT_DataLabelVisibilities)

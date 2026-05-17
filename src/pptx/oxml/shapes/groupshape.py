@@ -141,11 +141,20 @@ class CT_GroupShape(BaseShapeElement):
     def iter_shape_elms(self) -> Iterator[ShapeElement]:
         """Generate each child of this `p:spTree` element that corresponds to a shape.
 
-        Items appear in XML document order.
+        Items appear in XML document order. Shape elements wrapped in
+        `mc:AlternateContent` (e.g. ChartEx) are unwrapped from the `mc:Choice` branch.
         """
+        mc_alternate_content_tag = qn("mc:AlternateContent")
+        mc_choice_tag = qn("mc:Choice")
         for elm in self.iterchildren():
             if elm.tag in self._shape_tags:
                 yield elm
+            elif elm.tag == mc_alternate_content_tag:
+                choice = elm.find(mc_choice_tag)
+                if choice is not None:
+                    for child in choice:
+                        if child.tag in self._shape_tags:
+                            yield child
 
     @property
     def max_shape_id(self) -> int:

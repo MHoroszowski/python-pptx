@@ -231,3 +231,24 @@ XY_SCATTER_SMOOTH
 
 XY_SCATTER_SMOOTH_NO_MARKERS
     Scatter with Smoothed Lines and No Data Markers.
+
+WATERFALL
+    Waterfall (ChartEx). Office 2016+. Write + round-trip supported.
+
+TREEMAP
+    Treemap (ChartEx). Office 2016+. Round-trip preservation only.
+
+SUNBURST
+    Sunburst (ChartEx). Office 2016+. Round-trip preservation only.
+
+FUNNEL
+    Funnel (ChartEx). Office 2016+. Round-trip preservation only.
+
+BOX_WHISKER
+    Box & Whisker (ChartEx). Office 2016+. Round-trip preservation only.
+
+HISTOGRAM
+    Histogram (ChartEx). Office 2016+. Round-trip preservation only.
+
+PARETO
+    Pareto (ChartEx). Office 2016+. Round-trip preservation only.

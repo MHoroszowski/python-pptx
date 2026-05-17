@@ -37,7 +37,7 @@ from pptx.util import Emu, lazyproperty
 
 if TYPE_CHECKING:
     from pptx.chart.chart import Chart
-    from pptx.chart.data import ChartData
+    from pptx.chart.data import ChartData, WaterfallChartData
     from pptx.enum.chart import XL_CHART_TYPE
     from pptx.enum.shapes import MSO_CONNECTOR_TYPE, MSO_SHAPE
     from pptx.oxml.shapes import ShapeElement
@@ -346,11 +346,56 @@ class _BaseGroupShapes(_BaseShapes):
         Note that a |GraphicFrame| shape object is returned, not the |Chart| object contained in
         that graphic frame shape. The chart object may be accessed using the :attr:`chart`
         property of the returned |GraphicFrame| object.
+
+        ChartEx (Office 2016 modern) chart types are dispatched to the `cx:` writer path.
+        `XL_CHART_TYPE.WATERFALL` is fully supported and expects a
+        |WaterfallChartData| as `chart_data`. The remaining ChartEx types
+        (TREEMAP, SUNBURST, FUNNEL, BOX_WHISKER, HISTOGRAM, PARETO) have enum
+        members and round-trip preservation but no writer yet; calling
+        `add_chart` with one of them raises |NotImplementedError| (see issue #14).
         """
+        from pptx.enum.chart import XL_CHART_TYPE
+
+        _CHARTEX_WRITABLE = (XL_CHART_TYPE.WATERFALL,)
+        _CHARTEX_WRITER_DEFERRED = (
+            XL_CHART_TYPE.TREEMAP,
+            XL_CHART_TYPE.SUNBURST,
+            XL_CHART_TYPE.FUNNEL,
+            XL_CHART_TYPE.BOX_WHISKER,
+            XL_CHART_TYPE.HISTOGRAM,
+            XL_CHART_TYPE.PARETO,
+        )
+        if chart_type in _CHARTEX_WRITABLE:
+            return self.add_chartex(chart_data, x, y, cx, cy)
+        if chart_type in _CHARTEX_WRITER_DEFERRED:
+            raise NotImplementedError(
+                f"{chart_type} is a ChartEx (Office 2016) type with round-trip "
+                "preservation but no writer yet; only XL_CHART_TYPE.WATERFALL is "
+                "currently writable. See https://github.com/MHoroszowski/python-pptx/issues/14"
+            )
         rId = self.part.add_chart_part(chart_type, chart_data)
         graphicFrame = self._add_chart_graphicFrame(rId, x, y, cx, cy)
         self._recalculate_extents()
         return cast("Chart", self._shape_factory(graphicFrame))
+
+    def add_chartex(
+        self,
+        chart_data: WaterfallChartData,
+        x: Length,
+        y: Length,
+        cx: Length,
+        cy: Length,
+    ) -> GraphicFrame:
+        """Add a new ChartEx (e.g. waterfall) chart to the slide.
+
+        The chart is positioned at (`x`, `y`), has size (`cx`, `cy`), and depicts
+        `chart_data`. Returns the |GraphicFrame| shape containing the chart. Access the
+        |ChartEx| object via the :attr:`chartex` property of the returned graphic frame.
+        """
+        rId = self.part.add_chartex_part(chart_data)
+        graphicFrame = self._add_chartex_graphicFrame(rId, x, y, cx, cy)
+        self._recalculate_extents()
+        return cast("GraphicFrame", self._shape_factory(graphicFrame))
 
     def add_connector(
         self,
@@ -533,6 +578,22 @@ class _BaseGroupShapes(_BaseShapes):
         shape_id = self._next_shape_id
         name = "Chart %d" % (shape_id - 1)
         graphicFrame = CT_GraphicalObjectFrame.new_chart_graphicFrame(
+            shape_id, name, rId, x, y, cx, cy
+        )
+        self._spTree.append(graphicFrame)
+        return graphicFrame
+
+    def _add_chartex_graphicFrame(
+        self, rId: str, x: Length, y: Length, cx: Length, cy: Length
+    ) -> CT_GraphicalObjectFrame:
+        """Return new `p:graphicFrame` element appended to this shape tree.
+
+        The `p:graphicFrame` element has the specified position and size and refers to the
+        ChartEx part identified by `rId`.
+        """
+        shape_id = self._next_shape_id
+        name = "Chart %d" % (shape_id - 1)
+        graphicFrame = CT_GraphicalObjectFrame.new_chartex_graphicFrame(
             shape_id, name, rId, x, y, cx, cy
         )
         self._spTree.append(graphicFrame)

@@ -265,6 +265,54 @@ presentation with |pp|. There are more details in the API documentation for
 charts here: :ref:`chart-api`
 
 
+ChartEx — modern Office 2016 charts (waterfall, treemap, sunburst, ...)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Office 2016 introduced a new chart family — Waterfall, Treemap, Sunburst,
+Funnel, Box & Whisker, Histogram, and Pareto — that lives in a separate XML
+namespace (``cx:``, the *chart extensions* or "chartEx" part) rather than the
+classic ``c:`` chart tree. |pp| supports this family with two distinct
+capability levels:
+
+==================  ============================  =========================
+Capability          Chart types                   What you can do
+==================  ============================  =========================
+**Write**           ``WATERFALL``                 Author a brand-new chart
+**Round-trip**      ``WATERFALL``, ``TREEMAP``,   Open a deck that already
+only                ``SUNBURST``, ``FUNNEL``,     contains the chart, edit
+                    ``BOX_WHISKER``,              unrelated slides, and
+                    ``HISTOGRAM``, ``PARETO``     save without corrupting
+                                                  the chartEx part
+==================  ============================  =========================
+
+Authoring a waterfall chart uses the dedicated
+:class:`~pptx.chart.data.WaterfallChartData` container::
+
+    from pptx.chart.data import WaterfallChartData
+    from pptx.enum.chart import XL_CHART_TYPE
+
+    chart_data = WaterfallChartData()
+    chart_data.categories = ['Q1', 'Q2', 'Q3', 'Q4', 'Total']
+    chart_data.add_series('Revenue', (100, 50, -30, 80, 200), subtotals=[4])
+
+    graphic_frame = slide.shapes.add_chart(
+        XL_CHART_TYPE.WATERFALL, x, y, cx, cy, chart_data
+    )
+
+The returned |GraphicFrame| reports ``graphic_frame.has_chartex == True`` and
+its :attr:`~pptx.shapes.graphfrm.GraphicFrame.chartex` property returns a
+ChartEx proxy. (Classic charts continue to use ``.has_chart`` / ``.chart``.)
+
+The remaining ``cx:`` types currently have **round-trip preservation only** —
+``add_chart`` raises ``NotImplementedError`` for them, but a deck authored in
+PowerPoint that already contains a treemap, sunburst, etc. will read, modify,
+and save without damaging the existing chart. Writer support for those types
+is tracked as a follow-up to issue #14.
+
+The full set of ``cx:`` enum members is documented under
+:ref:`XlChartType`.
+
+
 About colors
 ~~~~~~~~~~~~
 
