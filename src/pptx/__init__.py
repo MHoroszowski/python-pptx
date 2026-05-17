@@ -10,6 +10,7 @@ from pptx.api import Presentation
 from pptx.opc.constants import CONTENT_TYPE as CT
 from pptx.opc.package import PartFactory
 from pptx.parts.chart import ChartPart
+from pptx.parts.chartex import ChartColorStylePart, ChartExPart, ChartStylePart
 from pptx.parts.comments import (
     AuthorsPart,
     CommentAuthorsPart,
@@ -64,6 +65,9 @@ content_type_to_part_class_map: dict[str, type[Part]] = {
     CT.PML_SLIDE_LAYOUT: SlideLayoutPart,
     CT.PML_SLIDE_MASTER: SlideMasterPart,
     CT.DML_CHART: ChartPart,
+    CT.OFC_CHART_EX: ChartExPart,
+    CT.OFC_CHART_STYLE: ChartStylePart,
+    CT.OFC_CHART_COLORS: ChartColorStylePart,
     CT.BMP: ImagePart,
     CT.GIF: ImagePart,
     CT.JPEG: ImagePart,
@@ -89,7 +93,10 @@ content_type_to_part_class_map: dict[str, type[Part]] = {
 PartFactory.part_type_for.update(content_type_to_part_class_map)
 
 del (
+    ChartColorStylePart,
+    ChartExPart,
     ChartPart,
+    ChartStylePart,
     AuthorsPart,
     CommentAuthorsPart,
     CommentsPart,

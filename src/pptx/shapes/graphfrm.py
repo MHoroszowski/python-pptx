@@ -13,6 +13,7 @@ from pptx.shapes.base import BaseShape
 from pptx.shared import ParentedElementProxy
 from pptx.spec import (
     GRAPHIC_DATA_URI_CHART,
+    GRAPHIC_DATA_URI_CHARTEX,
     GRAPHIC_DATA_URI_OLEOBJ,
     GRAPHIC_DATA_URI_TABLE,
 )
@@ -21,9 +22,11 @@ from pptx.util import lazyproperty
 
 if TYPE_CHECKING:
     from pptx.chart.chart import Chart
+    from pptx.chart.chartex import ChartEx
     from pptx.dml.effect import ShadowFormat
     from pptx.oxml.shapes.graphfrm import CT_GraphicalObjectData, CT_GraphicalObjectFrame
     from pptx.parts.chart import ChartPart
+    from pptx.parts.chartex import ChartExPart
     from pptx.parts.slide import BaseSlidePart
     from pptx.types import ProvidesPart
 
@@ -49,6 +52,16 @@ class GraphicFrame(BaseShape):
         return self.chart_part.chart
 
     @property
+    def chartex(self) -> "ChartEx":
+        """The |ChartEx| object containing the chart extension in this graphic frame.
+
+        Raises |ValueError| if this graphic frame does not contain a chart extension.
+        """
+        if not self.has_chartex:
+            raise ValueError("shape does not contain a chart extension")
+        return self.chartex_part.chartex
+
+    @property
     def chart_part(self) -> ChartPart:
         """The |ChartPart| object containing the chart in this graphic frame."""
         chart_rId = self._graphicFrame.chart_rId
@@ -57,12 +70,29 @@ class GraphicFrame(BaseShape):
         return cast("ChartPart", self.part.related_part(chart_rId))
 
     @property
+    def chartex_part(self) -> "ChartExPart":
+        """The |ChartExPart| object containing the chart extensions in this graphic frame."""
+        chartex_rId = self._graphicFrame.chartex_rId
+        if chartex_rId is None:
+            raise ValueError("this graphic frame does not contain a chart extension")
+        return cast("ChartExPart", self.part.related_part(chartex_rId))
+
+    @property
     def has_chart(self) -> bool:
         """|True| if this graphic frame contains a chart object. |False| otherwise.
 
         When |True|, the chart object can be accessed using the `.chart` property.
         """
         return self._graphicFrame.graphicData_uri == GRAPHIC_DATA_URI_CHART
+
+    @property
+    def has_chartex(self) -> bool:
+        """|True| if this graphic frame contains a chart extensions object.
+
+        |False| otherwise. Chart extensions were added in Office 2016 and provide
+        support for newer chart types such as waterfall, funnel, and sunburst charts.
+        """
+        return self._graphicFrame.graphicData_uri == GRAPHIC_DATA_URI_CHARTEX
 
     @property
     def has_table(self) -> bool:

@@ -858,3 +858,111 @@ class BubbleDataPoint(XyDataPoint):
         The value representing the size of the bubble for this data point.
         """
         return self._size
+
+
+class WaterfallChartData:
+    """Data container for a ChartEx waterfall chart.
+
+    Used as a parameter in :meth:`ChartEx.replace_data` to update the data displayed
+    by a waterfall chart. Categories appear in column A of the embedded Excel worksheet
+    and values in column B.
+
+    Example usage::
+
+        chart_data = WaterfallChartData()
+        chart_data.categories = ['Q1', 'Q2', 'Q3', 'Q4', 'Total']
+        chart_data.add_series('Revenue', [100, 50, -30, 80, 200], subtotals=[4])
+        chartex.replace_data(chart_data)
+    """
+
+    def __init__(self, number_format="General"):
+        self._categories = []
+        self._series_name = None
+        self._series_values = []
+        self._subtotals = []
+        self._number_format = number_format
+
+    @property
+    def categories(self):
+        """The category labels for this chart as a list of strings."""
+        return self._categories
+
+    @categories.setter
+    def categories(self, value):
+        self._categories = list(value)
+
+    def add_series(self, name, values, subtotals=None):
+        """Add a series with *name*, *values*, and optional *subtotals* indices.
+
+        *subtotals* is a list of zero-based category indices that represent subtotal
+        (or total) bars in the waterfall chart. Only one series is supported per
+        waterfall chart; calling this method a second time replaces the previous series.
+        """
+        self._series_name = name
+        self._series_values = list(values)
+        self._subtotals = list(subtotals) if subtotals else []
+
+    @property
+    def series_name(self):
+        """The name of the series, or None if no series has been added."""
+        return self._series_name
+
+    @property
+    def series_values(self):
+        """The numeric values for the series."""
+        return self._series_values
+
+    @property
+    def subtotals(self):
+        """Zero-based indices of categories that are subtotals."""
+        return self._subtotals
+
+    @property
+    def number_format(self):
+        """The number format string applied to values, e.g. ``'#,##0'``."""
+        return self._number_format
+
+    @property
+    def categories_ref(self):
+        """Excel worksheet reference for the category cells."""
+        n = len(self._categories)
+        return "Sheet1!$A$2:$A$%d" % (n + 1)
+
+    @property
+    def values_ref(self):
+        """Excel worksheet reference for the value cells."""
+        n = len(self._categories)
+        return "Sheet1!$B$2:$B$%d" % (n + 1)
+
+    @property
+    def series_name_ref(self):
+        """Excel worksheet reference for the series name cell."""
+        return "Sheet1!$B$1"
+
+    @property
+    def xlsx_blob(self):
+        """A bytes object containing an Excel workbook with the chart data."""
+        import io
+
+        from xlsxwriter import Workbook
+
+        xlsx_file = io.BytesIO()
+        workbook = Workbook(xlsx_file, {"in_memory": True})
+        worksheet = workbook.add_worksheet("Sheet1")
+
+        # Header row
+        worksheet.write(0, 0, "Category")
+        worksheet.write(0, 1, self._series_name or "Series 1")
+
+        # Data rows
+        if len(self._categories) != len(self._series_values):
+            raise ValueError(
+                f"categories length ({len(self._categories)}) must equal"
+                f" series values length ({len(self._series_values)})"
+            )
+        for idx, (cat, val) in enumerate(zip(self._categories, self._series_values)):
+            worksheet.write(idx + 1, 0, cat)
+            worksheet.write(idx + 1, 1, val)
+
+        workbook.close()
+        return xlsx_file.getvalue()

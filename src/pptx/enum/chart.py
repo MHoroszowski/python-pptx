@@ -290,6 +290,34 @@ class XL_CHART_TYPE(BaseEnum):
     XY_SCATTER_SMOOTH_NO_MARKERS = (73, "Scatter with Smoothed Lines and No Data Markers.")
     """Scatter with Smoothed Lines and No Data Markers."""
 
+    # -- Office 2016 modern chart family (ChartEx / `cx:` namespace). These are not
+    # -- part of the MS COM `XlChartType` enumeration (which predates chartEx); the
+    # -- integer values are fork-specific extensions in a private high range chosen
+    # -- to avoid collision with any MS value. See issue #14. Only WATERFALL has a
+    # -- writer; the others are enum + round-trip-preservation only (writers tracked
+    # -- as a follow-up issue).
+
+    WATERFALL = (1001, "Waterfall (ChartEx). Office 2016+.")
+    """Waterfall (ChartEx). Office 2016+."""
+
+    TREEMAP = (1002, "Treemap (ChartEx). Office 2016+. Round-trip only.")
+    """Treemap (ChartEx). Office 2016+. Round-trip preservation only."""
+
+    SUNBURST = (1003, "Sunburst (ChartEx). Office 2016+. Round-trip only.")
+    """Sunburst (ChartEx). Office 2016+. Round-trip preservation only."""
+
+    FUNNEL = (1004, "Funnel (ChartEx). Office 2016+. Round-trip only.")
+    """Funnel (ChartEx). Office 2016+. Round-trip preservation only."""
+
+    BOX_WHISKER = (1005, "Box & Whisker (ChartEx). Office 2016+. Round-trip only.")
+    """Box & Whisker (ChartEx). Office 2016+. Round-trip preservation only."""
+
+    HISTOGRAM = (1006, "Histogram (ChartEx). Office 2016+. Round-trip only.")
+    """Histogram (ChartEx). Office 2016+. Round-trip preservation only."""
+
+    PARETO = (1007, "Pareto / Histogram-Pareto (ChartEx). Office 2016+. Round-trip only.")
+    """Pareto (ChartEx). Office 2016+. Round-trip preservation only."""
+
 
 class XL_DATA_LABEL_POSITION(BaseXmlEnum):
     """Specifies where the data label is positioned.

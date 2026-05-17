@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+from pptx.oxml import parse_xml
+from pptx.oxml.ns import nsdecls
 from pptx.oxml.shapes.autoshape import CT_Shape
 from pptx.oxml.shapes.graphfrm import CT_GraphicalObjectFrame
 from pptx.oxml.shapes.groupshape import CT_GroupShape
@@ -122,6 +124,40 @@ class DescribeCT_GroupShape(object):
         assert spTree.max_shape_id == 2
         # ---and `_next_shape_id` (max + 1) stays in the safe shape-id range---
         assert spTree.max_shape_id + 1 == 3
+
+    def it_yields_shapes_wrapped_in_mc_AlternateContent(self):
+        spTree = parse_xml(
+            "<p:spTree %s>"
+            "  <p:nvGrpSpPr>"
+            '    <p:cNvPr id="1" name=""/>'
+            "    <p:cNvGrpSpPr/>"
+            "    <p:nvPr/>"
+            "  </p:nvGrpSpPr>"
+            "  <p:grpSpPr/>"
+            '  <p:sp><p:nvSpPr><p:cNvPr id="2" name="Shape 1"/>'
+            "    <p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr/></p:sp>"
+            "  <mc:AlternateContent>"
+            '    <mc:Choice Requires="cx1">'
+            '      <p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="3"'
+            '        name="Chart 2"/><p:cNvGraphicFramePr/><p:nvPr/>'
+            "        </p:nvGraphicFramePr><p:xfrm/><a:graphic>"
+            "        <a:graphicData"
+            '          uri="http://schemas.microsoft.com/office/drawing/2014/chartex"/>'
+            "        </a:graphic></p:graphicFrame>"
+            "    </mc:Choice>"
+            "    <mc:Fallback>"
+            '      <p:sp><p:nvSpPr><p:cNvPr id="4" name="Fallback"/>'
+            "        <p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr/></p:sp>"
+            "    </mc:Fallback>"
+            "  </mc:AlternateContent>"
+            "</p:spTree>" % nsdecls("a", "mc", "p", "r")
+        )
+
+        shape_elms = list(spTree.iter_shape_elms())
+
+        assert len(shape_elms) == 2
+        assert shape_elms[0].tag.endswith("}sp")
+        assert shape_elms[1].tag.endswith("}graphicFrame")
 
     # fixtures ---------------------------------------------
 
