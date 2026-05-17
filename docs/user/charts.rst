@@ -274,16 +274,11 @@ namespace (``cx:``, the *chart extensions* or "chartEx" part) rather than the
 classic ``c:`` chart tree. |pp| supports this family with two distinct
 capability levels:
 
-==================  ============================  =========================
-Capability          Chart types                   What you can do
-==================  ============================  =========================
-**Write**           ``WATERFALL``                 Author a brand-new chart
-**Round-trip**      ``WATERFALL``, ``TREEMAP``,   Open a deck that already
-only                ``SUNBURST``, ``FUNNEL``,     contains the chart, edit
-                    ``BOX_WHISKER``,              unrelated slides, and
-                    ``HISTOGRAM``, ``PARETO``     save without corrupting
-                                                  the chartEx part
-==================  ============================  =========================
+As of Phase C (issue #14) **all** ChartEx types are write-capable:
+``WATERFALL``, ``TREEMAP``, ``SUNBURST``, ``FUNNEL``, ``BOX_WHISKER``,
+``HISTOGRAM``, and ``PARETO`` can each be authored with ``add_chart`` and
+also round-trip (open a deck that already contains the chart, edit unrelated
+slides, save without corrupting the chartEx part).
 
 Authoring a waterfall chart uses the dedicated
 :class:`~pptx.chart.data.WaterfallChartData` container::
@@ -303,11 +298,39 @@ The returned |GraphicFrame| reports ``graphic_frame.has_chartex == True`` and
 its :attr:`~pptx.shapes.graphfrm.GraphicFrame.chartex` property returns a
 ChartEx proxy. (Classic charts continue to use ``.has_chart`` / ``.chart``.)
 
-The remaining ``cx:`` types currently have **round-trip preservation only** —
-``add_chart`` raises ``NotImplementedError`` for them, but a deck authored in
-PowerPoint that already contains a treemap, sunburst, etc. will read, modify,
-and save without damaging the existing chart. Writer support for those types
-is tracked as a follow-up to issue #14.
+The other ChartEx types use purpose-built data containers from
+``pptx.chart.data``:
+
+- ``TreemapChartData`` / ``SunburstChartData`` — hierarchical; call
+  ``add_level(labels)`` outermost-first, then ``add_series(name, values)``
+  for the leaf values.
+- ``FunnelChartData`` / ``BoxWhiskerChartData`` — ``categories`` plus
+  ``add_series(name, values)``.
+- ``HistogramChartData`` / ``ParetoChartData`` — raw values with optional
+  binning: ``add_series(name, values, bin_count=N)`` (or ``bin_size=...``).
+
+For example, a treemap::
+
+    from pptx.chart.data import TreemapChartData
+
+    chart_data = TreemapChartData()
+    chart_data.add_level(['Tech', 'Tech', 'Retail', 'Retail'])
+    chart_data.add_level(['Phones', 'Laptops', 'Apparel', 'Food'])
+    chart_data.add_series('Revenue', (50, 30, 20, 15))
+
+    slide.shapes.add_chart(
+        XL_CHART_TYPE.TREEMAP, x, y, cx, cy, chart_data
+    )
+
+Updating the data of an existing ChartEx chart (any type) uses
+:meth:`~pptx.chart.chartex.ChartEx.replace_data`, parallel to the classic
+``Chart.replace_data``::
+
+    graphic_frame.chartex.replace_data(new_chart_data)
+
+``replace_data`` rewrites the chart data and embedded workbook in place — the
+chartEx part and its slide relationship are unchanged — and raises
+``ValueError`` if the new data's chart type doesn't match the existing chart.
 
 The full set of ``cx:`` enum members is documented under
 :ref:`XlChartType`.

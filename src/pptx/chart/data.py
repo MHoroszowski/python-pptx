@@ -966,3 +966,272 @@ class WaterfallChartData:
 
         workbook.close()
         return xlsx_file.getvalue()
+
+
+def _cx_xlsx(columns):
+    """Return an xlsx blob. `columns` is a list of (header, list-of-cells)."""
+    import io
+
+    from xlsxwriter import Workbook
+
+    xlsx_file = io.BytesIO()
+    workbook = Workbook(xlsx_file, {"in_memory": True})
+    worksheet = workbook.add_worksheet("Sheet1")
+    for col, (header, cells) in enumerate(columns):
+        worksheet.write(0, col, header)
+        for row, cell in enumerate(cells):
+            if cell is not None and cell != "":
+                worksheet.write(row + 1, col, cell)
+    workbook.close()
+    return xlsx_file.getvalue()
+
+
+class _CategoryChartExData:
+    """Flat categories + one value series. Base for Funnel and Box & Whisker."""
+
+    cx_chart_type = None  # set by subclass: "funnel" | "boxWhisker"
+
+    def __init__(self, number_format="General"):
+        self._categories = []
+        self._series_name = None
+        self._series_values = []
+        self._number_format = number_format
+
+    @property
+    def categories(self):
+        """The category labels as a list of strings."""
+        return self._categories
+
+    @categories.setter
+    def categories(self, value):
+        self._categories = list(value)
+
+    def add_series(self, name, values):
+        """Set the (single) series name and numeric values."""
+        self._series_name = name
+        self._series_values = list(values)
+
+    @property
+    def series_name(self):
+        return self._series_name
+
+    @property
+    def series_values(self):
+        return self._series_values
+
+    @property
+    def number_format(self):
+        return self._number_format
+
+    @property
+    def categories_ref(self):
+        n = len(self._categories)
+        return "Sheet1!$A$2:$A$%d" % (n + 1)
+
+    @property
+    def values_ref(self):
+        n = len(self._categories)
+        return "Sheet1!$B$2:$B$%d" % (n + 1)
+
+    @property
+    def series_name_ref(self):
+        return "Sheet1!$B$1"
+
+    @property
+    def xlsx_blob(self):
+        if len(self._categories) != len(self._series_values):
+            raise ValueError(
+                f"categories length ({len(self._categories)}) must equal"
+                f" series values length ({len(self._series_values)})"
+            )
+        return _cx_xlsx(
+            [
+                ("Category", self._categories),
+                (self._series_name or "Series 1", self._series_values),
+            ]
+        )
+
+
+class FunnelChartData(_CategoryChartExData):
+    """Data container for a ChartEx funnel chart (categories + values)."""
+
+    cx_chart_type = "funnel"
+
+
+class BoxWhiskerChartData(_CategoryChartExData):
+    """Data container for a ChartEx box & whisker chart (categories + values)."""
+
+    cx_chart_type = "boxWhisker"
+
+
+class HierarchicalChartExData:
+    """Multi-level categories + leaf values. Base for Treemap and Sunburst.
+
+    `add_level(labels)` is called outermost-first; the final `add_series`
+    supplies the leaf-level values (aligned to the innermost level).
+
+    Example::
+
+        cd = TreemapChartData()
+        cd.add_level(['Tech', 'Tech', 'Retail', 'Retail'])
+        cd.add_level(['Phones', 'Laptops', 'Apparel', 'Food'])
+        cd.add_series('Revenue', [50, 30, 20, 15])
+    """
+
+    cx_chart_type = None  # "treemap" | "sunburst"
+
+    def __init__(self, number_format="General"):
+        self._levels = []
+        self._series_name = None
+        self._series_values = []
+        self._number_format = number_format
+
+    def add_level(self, labels):
+        """Append one hierarchy level (outermost-first)."""
+        self._levels.append(list(labels))
+
+    @property
+    def levels(self):
+        return self._levels
+
+    def add_series(self, name, values):
+        self._series_name = name
+        self._series_values = list(values)
+
+    @property
+    def series_name(self):
+        return self._series_name
+
+    @property
+    def series_values(self):
+        return self._series_values
+
+    @property
+    def number_format(self):
+        return self._number_format
+
+    @property
+    def _leaf_count(self):
+        return len(self._series_values)
+
+    @property
+    def categories_ref(self):
+        n = self._leaf_count
+        last_col = chr(ord("A") + max(len(self._levels) - 1, 0))
+        return "Sheet1!$A$2:$%s$%d" % (last_col, n + 1)
+
+    @property
+    def values_ref(self):
+        n = self._leaf_count
+        col = chr(ord("A") + len(self._levels))
+        return "Sheet1!$%s$2:$%s$%d" % (col, col, n + 1)
+
+    @property
+    def series_name_ref(self):
+        col = chr(ord("A") + len(self._levels))
+        return "Sheet1!$%s$1" % col
+
+    @property
+    def xlsx_blob(self):
+        for lvl in self._levels:
+            if len(lvl) != self._leaf_count:
+                raise ValueError(
+                    "every hierarchy level must have the same length as the"
+                    f" series values ({self._leaf_count})"
+                )
+        cols = [("Level %d" % (i + 1), lvl) for i, lvl in enumerate(self._levels)]
+        cols.append((self._series_name or "Series 1", self._series_values))
+        return _cx_xlsx(cols)
+
+
+class TreemapChartData(HierarchicalChartExData):
+    """Data container for a ChartEx treemap chart."""
+
+    cx_chart_type = "treemap"
+
+
+class SunburstChartData(HierarchicalChartExData):
+    """Data container for a ChartEx sunburst chart."""
+
+    cx_chart_type = "sunburst"
+
+
+class HistogramChartData:
+    """Raw values + bin configuration for a ChartEx histogram.
+
+    Provide exactly one of `bin_count` / `bin_size` (or neither for
+    PowerPoint-automatic binning).
+
+    Example::
+
+        cd = HistogramChartData()
+        cd.add_series('Scores', [55, 62, 71, 73, 88, 91, 64, 78], bin_count=5)
+    """
+
+    cx_chart_type = "histogram"
+
+    def __init__(self, number_format="General"):
+        self._series_name = None
+        self._series_values = []
+        self._bin_count = None
+        self._bin_size = None
+        self._number_format = number_format
+
+    def add_series(self, name, values, bin_count=None, bin_size=None):
+        self._series_name = name
+        self._series_values = list(values)
+        if bin_count is not None and bin_size is not None:
+            raise ValueError("supply only one of bin_count / bin_size")
+        self._bin_count = bin_count
+        self._bin_size = bin_size
+
+    @property
+    def series_name(self):
+        return self._series_name
+
+    @property
+    def series_values(self):
+        return self._series_values
+
+    @property
+    def bin_count(self):
+        return self._bin_count
+
+    @property
+    def bin_size(self):
+        return self._bin_size
+
+    @property
+    def number_format(self):
+        return self._number_format
+
+    @property
+    def values_ref(self):
+        n = len(self._series_values)
+        return "Sheet1!$A$2:$A$%d" % (n + 1)
+
+    @property
+    def series_name_ref(self):
+        return "Sheet1!$A$1"
+
+    @property
+    def xlsx_blob(self):
+        return _cx_xlsx([(self._series_name or "Series 1", self._series_values)])
+
+
+class ParetoChartData(_CategoryChartExData):
+    """Data container for a ChartEx Pareto chart.
+
+    PowerPoint's Pareto aggregates by **category** (not numeric bins) and
+    overlays a cumulative-percentage line — so this is category+value shaped
+    (like Funnel), confirmed against PowerPoint-authored ground truth
+    (issue #14).
+
+    Example::
+
+        cd = ParetoChartData()
+        cd.categories = ['Defect A', 'Defect B', 'Defect C', 'Defect D']
+        cd.add_series('Count', [45, 30, 15, 10])
+    """
+
+    cx_chart_type = "pareto"

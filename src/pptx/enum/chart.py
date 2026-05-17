@@ -300,23 +300,23 @@ class XL_CHART_TYPE(BaseEnum):
     WATERFALL = (1001, "Waterfall (ChartEx). Office 2016+.")
     """Waterfall (ChartEx). Office 2016+."""
 
-    TREEMAP = (1002, "Treemap (ChartEx). Office 2016+. Round-trip only.")
-    """Treemap (ChartEx). Office 2016+. Round-trip preservation only."""
+    TREEMAP = (1002, "Treemap (ChartEx). Office 2016+. Write + round-trip.")
+    """Treemap (ChartEx). Office 2016+. Write + round-trip supported."""
 
-    SUNBURST = (1003, "Sunburst (ChartEx). Office 2016+. Round-trip only.")
-    """Sunburst (ChartEx). Office 2016+. Round-trip preservation only."""
+    SUNBURST = (1003, "Sunburst (ChartEx). Office 2016+. Write + round-trip.")
+    """Sunburst (ChartEx). Office 2016+. Write + round-trip supported."""
 
-    FUNNEL = (1004, "Funnel (ChartEx). Office 2016+. Round-trip only.")
-    """Funnel (ChartEx). Office 2016+. Round-trip preservation only."""
+    FUNNEL = (1004, "Funnel (ChartEx). Office 2016+. Write + round-trip.")
+    """Funnel (ChartEx). Office 2016+. Write + round-trip supported."""
 
-    BOX_WHISKER = (1005, "Box & Whisker (ChartEx). Office 2016+. Round-trip only.")
-    """Box & Whisker (ChartEx). Office 2016+. Round-trip preservation only."""
+    BOX_WHISKER = (1005, "Box & Whisker (ChartEx). Office 2016+. Write + round-trip.")
+    """Box & Whisker (ChartEx). Office 2016+. Write + round-trip supported."""
 
-    HISTOGRAM = (1006, "Histogram (ChartEx). Office 2016+. Round-trip only.")
-    """Histogram (ChartEx). Office 2016+. Round-trip preservation only."""
+    HISTOGRAM = (1006, "Histogram (ChartEx). Office 2016+. Write + round-trip.")
+    """Histogram (ChartEx). Office 2016+. Write + round-trip supported."""
 
-    PARETO = (1007, "Pareto / Histogram-Pareto (ChartEx). Office 2016+. Round-trip only.")
-    """Pareto (ChartEx). Office 2016+. Round-trip preservation only."""
+    PARETO = (1007, "Pareto / Histogram-Pareto (ChartEx). Office 2016+. Write + round-trip.")
+    """Pareto (ChartEx). Office 2016+. Write + round-trip supported."""
 
 
 class XL_DATA_LABEL_POSITION(BaseXmlEnum):
