@@ -335,13 +335,50 @@ class CT_ThreadedComment(BaseOxmlElement):
     status: str = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
         "status", XsdString
     )
-    # ---Wave-2 anchor: when a comment is anchored to a shape, the anchored
-    #    shape's id is stored here. ``anchor_position`` (proxy layer) resolves
-    #    it back to the shape's slide-space (left, top). Custom attribute on
-    #    the p188:cm element; lxml round-trips unknown attributes verbatim.
-    anchorShapeId: int = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
-        "anchorShapeId", XsdUnsignedInt
-    )
+    extLst = ZeroOrOne("p188:extLst", successors=())
+
+    # ---Shape anchor (Wave-2 SF7). NOT a schema attribute: the 2018/8/main
+    #    `<p188:cm>` schema defines only id/authorId/created/status. An
+    #    out-of-schema attribute on p188:cm is a plausible PowerPoint
+    #    repair-dialog trigger (Cato audit), so the anchored shape id is
+    #    stored in a `<p188:extLst>/<p188:ext>` keyed by a fork-private URI
+    #    — the OOXML-sanctioned extension mechanism that conformant
+    #    consumers MUST ignore when the URI is unknown.
+    _ANCHOR_EXT_URI = "https://github.com/MHoroszowski/python-pptx/ns/comment-anchor"
+    _ANCHOR_NS = _ANCHOR_EXT_URI
+    _ANCHOR_TAG = "{%s}anchor" % _ANCHOR_NS
+
+    @property
+    def anchorShapeId(self) -> int | None:
+        """Anchored shape id, read from the fork extLst extension, else None."""
+        extLst = self.extLst
+        if extLst is None:
+            return None
+        for ext in extLst.findall(qn("p188:ext")):
+            if ext.get("uri") != self._ANCHOR_EXT_URI:
+                continue
+            anchor = ext.find(self._ANCHOR_TAG)
+            if anchor is None:
+                return None
+            raw = anchor.get("shapeId")
+            return int(raw) if raw is not None and raw.lstrip("-").isdigit() else None
+        return None
+
+    @anchorShapeId.setter
+    def anchorShapeId(self, shape_id: int) -> None:
+        extLst = self.get_or_add_extLst()
+        for ext in extLst.findall(qn("p188:ext")):
+            if ext.get("uri") == self._ANCHOR_EXT_URI:
+                anchor = ext.find(self._ANCHOR_TAG)
+                if anchor is None:
+                    anchor = ext.makeelement(self._ANCHOR_TAG, {})
+                    ext.append(anchor)
+                anchor.set("shapeId", str(shape_id))
+                return
+        ext = extLst.makeelement(qn("p188:ext"), {"uri": self._ANCHOR_EXT_URI})
+        anchor = ext.makeelement(self._ANCHOR_TAG, {"shapeId": str(shape_id)})
+        ext.append(anchor)
+        extLst.append(ext)
 
     @classmethod
     def new(cls, comment_id: str, author_id: str, created: str) -> CT_ThreadedComment:
