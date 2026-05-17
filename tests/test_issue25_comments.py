@@ -758,6 +758,49 @@ class DescribeThreadedCommentPowerPointContract:
             "set_slide_marker must be idempotent (exactly one <pc:sldMkLst>)"
         )
 
+    def it_places_replyLst_before_txBody_per_ms_pptx_sequence(self):
+        # [MS-PPTX] CT_Comment sequence: EG_CommentAnchor, pos?, replyLst?,
+        # EG_CommentProperties(txBody, extLst). replyLst MUST precede txBody.
+        # Emitting replyLst AFTER txBody makes PowerPoint render the parent
+        # comment but SILENTLY DROP every reply (issue #25, the reply defect).
+        prs = Presentation()
+        s = prs.slides.add_slide(prs.slide_layouts[1])
+        c = s.comments.add("parent body", author="Rev")
+        c.replies.add("a reply body", author="Rev2")
+        buf = io.BytesIO()
+        prs.save(buf)
+        buf.seek(0)
+        import zipfile
+
+        z = zipfile.ZipFile(buf)
+        name = next(n for n in z.namelist() if "modernComment" in n)
+        xml = z.read(name).decode()
+        assert "replyLst" in xml, "expected a <p188:replyLst> for the reply"
+        assert "a reply body" in xml, "reply text must serialize"
+        assert xml.index("replyLst") < xml.index("txBody"), (
+            "<p188:replyLst> must precede <p188:txBody> per [MS-PPTX] "
+            "CT_Comment sequence, or PowerPoint drops every reply"
+        )
+
+    def it_keeps_reply_txBody_with_bodyPr_after_reorder(self):
+        # Guard the reorder didn't regress the reply body shape.
+        prs = Presentation()
+        s = prs.slides.add_slide(prs.slide_layouts[1])
+        c = s.comments.add("p", author="Rev")
+        c.replies.add("r", author="Rev2")
+        buf = io.BytesIO()
+        prs.save(buf)
+        buf.seek(0)
+        import re
+        import zipfile
+
+        z = zipfile.ZipFile(buf)
+        name = next(n for n in z.namelist() if "modernComment" in n)
+        xml = z.read(name).decode()
+        reply = re.search(r"<p188:reply\b.*?</p188:reply>", xml, re.S).group(0)
+        assert "bodyPr" in reply
+        assert reply.index("bodyPr") < reply.index("<a:p")
+
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))

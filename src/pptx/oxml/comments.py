@@ -334,11 +334,23 @@ class CT_ThreadedComment(BaseOxmlElement):
     empty-Comments-pane root cause). Replies do not carry their own marker.
     """
 
-    sldMkLst = ZeroOrOne("pc:sldMkLst", successors=("p188:txBody", "p188:replyLst", "p188:extLst"))
-    txBody = ZeroOrOne("p188:txBody", successors=("p188:replyLst", "p188:extLst"))
+    # Child order is FIXED by [MS-PPTX] CT_Comment (authoritative spec, the
+    # contract PowerPoint implements):
+    #   <xsd:sequence>
+    #     EG_CommentAnchor (pc:sldMkLst)   minOccurs=1
+    #     pos      (a:CT_Point2D)          minOccurs=0
+    #     replyLst (CT_CommentReplyList)   minOccurs=0
+    #     EG_CommentProperties (txBody, extLst) minOccurs=1
+    #   </xsd:sequence>
+    # i.e. replyLst MUST precede txBody. Emitting <p188:replyLst> AFTER
+    # <p188:txBody> (the pre-2026-05-17 order) is out-of-sequence: PowerPoint
+    # renders the parent comment but SILENTLY DROPS every reply. The successor
+    # tuples below encode this exact order (pos omitted — optional, unused).
+    sldMkLst = ZeroOrOne("pc:sldMkLst", successors=("p188:replyLst", "p188:txBody", "p188:extLst"))
     replyLst: "CT_ThreadedCommentReplyList | None" = ZeroOrOne(  # pyright: ignore
-        "p188:replyLst", successors=("p188:extLst",)
+        "p188:replyLst", successors=("p188:txBody", "p188:extLst")
     )
+    txBody = ZeroOrOne("p188:txBody", successors=("p188:extLst",))
 
     id: str = RequiredAttribute(  # pyright: ignore[reportAssignmentType]
         "id", XsdString
