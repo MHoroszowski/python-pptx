@@ -417,8 +417,43 @@ class Slide(_BaseSlide):
 
     @property
     def slide_layout(self) -> SlideLayout:
-        """|SlideLayout| object this slide inherits appearance from."""
+        """|SlideLayout| object this slide inherits appearance from.
+
+        Assigning a |SlideLayout| re-points this slide at that layout — see
+        :meth:`apply_layout` for the full semantics. The target layout may be
+        owned by a *different* slide-master than the one this slide currently
+        inherits from (issue #19 SF7).
+        """
         return self.part.slide_layout
+
+    @slide_layout.setter
+    def slide_layout(self, slide_layout: SlideLayout) -> None:
+        self.apply_layout(slide_layout)
+
+    def apply_layout(self, slide_layout: SlideLayout) -> None:
+        """Re-point this slide so it inherits appearance from `slide_layout`.
+
+        `slide_layout` may belong to a slide-master *other* than the one this
+        slide currently inherits from — cross-master layout application
+        (issue #19 SF7; ISC-44..49). The slide→layout relationship is
+        repointed to the target layout's part and the rel chain
+        slide→layout→master(theme) stays intact: the target layout already
+        owns its own ``SLIDE_MASTER`` back-relationship, so no dangling rel
+        is created.
+
+        The slide's *prior* layout (and that layout's master) is NOT removed
+        from the package — only this slide's relationship to it is dropped.
+        Other slides that still reference the prior layout are unaffected,
+        and the prior layout remains discoverable through its master's
+        ``slide_layouts`` collection.
+
+        Raises |TypeError| if `slide_layout` is not a |SlideLayout|.
+        """
+        if not isinstance(slide_layout, SlideLayout):
+            raise TypeError(
+                "apply_layout() requires a SlideLayout, got %s" % type(slide_layout).__name__
+            )
+        self.part.apply_slide_layout(slide_layout.part)
 
     def _first_ph_of_type(self, ph_type: PP_PLACEHOLDER) -> SlidePlaceholder | None:
         """Return the first SlidePlaceholder of `ph_type` in document order, or |None|.
@@ -698,6 +733,41 @@ class SlideLayouts(ParentedElementProxy):
         """Support len() built-in function, e.g. `len(slides) == 4`."""
         return len(self._sldLayoutIdLst)
 
+    def add_layout(self, name: str | None = None) -> SlideLayout:
+        """Create and return a new blank |SlideLayout| on this master.
+
+        The new layout is appended to the master's `p:sldLayoutIdLst`
+        (making it discoverable via indexing, iteration, and
+        `get_by_name`) and is usable immediately as the basis for a new
+        slide. When `name` is omitted a sensible default of the form
+        ``"Layout N"`` is assigned. Manual semantic port of upstream
+        scanny/python-pptx#1091 (issue #19 SF3).
+        """
+        rId, layout = self.part.add_layout()
+        self._sldLayoutIdLst.add_sldLayoutId(rId)
+        layout.name = name if name else "Layout %d" % len(self)
+        return layout
+
+    def copy_from(self, other_layout: SlideLayout) -> SlideLayout:
+        """Create and return a deep copy of `other_layout` on this master.
+
+        A fresh blank layout is created via the SF3 `add_layout`
+        machinery, then every shape (including placeholders) in
+        `other_layout`'s shape tree is deep-copied into it. Placeholder
+        `idx`/`type` are preserved exactly. Image/media relationships are
+        re-related so the copy has no dangling rels; the source layout is
+        NOT mutated (issue #19 SF4; ISC-23..29).
+
+        The new layout's name defaults to ``"<source name> Copy"``; assign
+        ``.name`` afterward to override. The returned |SlideLayout| is
+        immediately discoverable via indexing, iteration, and
+        `get_by_name`, and survives a save→reopen round-trip.
+        """
+        source_name = other_layout.name or "Layout"
+        new_layout = self.add_layout(name="%s Copy" % source_name)
+        new_layout.part.copy_shapes_from(other_layout.part)
+        return new_layout
+
     def get_by_name(self, name: str, default: SlideLayout | None = None) -> SlideLayout | None:
         """Return SlideLayout object having `name`, or `default` if not found."""
         for slide_layout in self:
@@ -785,6 +855,22 @@ class SlideMaster(_HeaderFooterVisibility, _BaseMaster):
     def slide_layouts(self) -> SlideLayouts:
         """|SlideLayouts| object providing access to this slide-master's layouts."""
         return SlideLayouts(self._element.get_or_add_sldLayoutIdLst(), self)
+
+    def get_layout(
+        self, slide_layout_id: int, default: SlideLayout | None = None
+    ) -> SlideLayout | None:
+        """Return the |SlideLayout| identified by `slide_layout_id`, else `default`.
+
+        `slide_layout_id` is the OOXML ``p:sldLayoutId/@id`` value (NOT the
+        relationship id and NOT the collection index). Returns `default`
+        (``None`` unless specified) when no layout in this master carries that
+        id — never raises. Closes scanny/python-pptx#269 (issue #19).
+        """
+        sldLayoutIdLst = self._element.get_or_add_sldLayoutIdLst()
+        for sldLayoutId in sldLayoutIdLst.sldLayoutId_lst:
+            if sldLayoutId.id == slide_layout_id:
+                return self.part.related_slide_layout(sldLayoutId.rId)
+        return default
 
 
 class SlideMasters(ParentedElementProxy):

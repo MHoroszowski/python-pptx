@@ -14,7 +14,7 @@ from pptx.opc.constants import CONTENT_TYPE as CT
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.opc.package import Part, XmlPart
 from pptx.opc.packuri import PackURI
-from pptx.oxml.slide import CT_NotesMaster, CT_NotesSlide, CT_Slide
+from pptx.oxml.slide import CT_NotesMaster, CT_NotesSlide, CT_Slide, CT_SlideLayout
 from pptx.oxml.theme import CT_OfficeStyleSheet
 from pptx.parts.chart import ChartPart
 from pptx.parts.embeddedpackage import EmbeddedPackagePart
@@ -272,6 +272,25 @@ class SlidePart(BaseSlidePart):
         slide_layout_part = self.part_related_by(RT.SLIDE_LAYOUT)
         return slide_layout_part.slide_layout
 
+    def apply_slide_layout(self, slide_layout_part: SlideLayoutPart) -> None:
+        """Repoint this slide's ``SLIDE_LAYOUT`` relationship at `slide_layout_part`.
+
+        The existing slide→layout relationship is dropped and a fresh one to
+        `slide_layout_part` is created. Dropping the rel only removes *this
+        slide's* edge to the prior layout — the prior layout and its master
+        remain in the package (other slides may still reference them, and the
+        master still lists the layout in its ``p:sldLayoutIdLst``). The target
+        layout part already carries its own ``SLIDE_MASTER`` back-rel (wired
+        by ``SlideMasterPart.add_layout``), so the slide→layout→master chain
+        is intact and dangling-rel-free. Idempotent: applying the
+        currently-related layout drops then recreates the same edge with the
+        same effect (issue #19 SF7; ISC-44..49).
+        """
+        for rId, rel in list(self.rels.items()):
+            if not rel.is_external and rel.reltype == RT.SLIDE_LAYOUT:
+                self.drop_rel(rId)
+        self.relate_to(slide_layout_part, RT.SLIDE_LAYOUT)
+
     def _add_notes_slide_part(self):
         """
         Return a newly created |NotesSlidePart| object related to this slide
@@ -337,6 +356,42 @@ def _replicate_rels_for_duplicate(src_part: Part, new_part: Part) -> dict[str, s
             new_rId = new_part.relate_to(new_target, rel.reltype)
         else:
             # Shared parts: image, media, video, layout, master, theme, etc.
+            new_rId = new_part.relate_to(rel.target_part, rel.reltype)
+        rId_map[rId] = new_rId
+    return rId_map
+
+
+# Reltypes filtered out during layout copy_from. SLIDE_MASTER is the
+# layout→master back-rel — the destination layout already owns its own
+# (wired by `SlideMasterPart.add_layout`), so copying it would create a
+# duplicate, conflicting master relationship.
+_LAYOUT_COPY_DROP_RELTYPES = frozenset({RT.SLIDE_MASTER})
+
+
+def _replicate_rels_for_layout_copy(src_part: Part, new_part: Part) -> dict[str, str]:
+    """Mirror `src_part`'s non-structural rels onto `new_part`.
+
+    Used by `SlideLayoutPart.copy_shapes_from` (issue #19 SF4). Image,
+    media, and external-target rels are reused/recreated so the copied
+    shapes resolve; the `SLIDE_MASTER` back-rel is skipped because the
+    destination layout already has its own. Returns a `{old_rId: new_rId}`
+    map for rId-attribute remapping on the copied shape XML.
+    """
+    rId_map: dict[str, str] = {}
+    for rId, rel in src_part.rels.items():
+        if rel.reltype in _LAYOUT_COPY_DROP_RELTYPES:
+            continue
+        if rel.is_external:
+            new_rId = new_part.relate_to(rel.target_ref, rel.reltype, is_external=True)
+        elif rel.reltype == RT.CHART:
+            new_target = _duplicate_chart_part(cast(ChartPart, rel.target_part))
+            new_rId = new_part.relate_to(new_target, rel.reltype)
+        elif rel.reltype in (RT.OLE_OBJECT, RT.PACKAGE):
+            new_target = _duplicate_blob_part(cast(Part, rel.target_part))
+            new_rId = new_part.relate_to(new_target, rel.reltype)
+        else:
+            # Shared parts: image, media, video, theme, etc. — reuse the
+            # same package-level part (SHA1 dedup already happened on add).
             new_rId = new_part.relate_to(rel.target_part, rel.reltype)
         rId_map[rId] = new_rId
     return rId_map
@@ -1022,6 +1077,15 @@ class SlideLayoutPart(BaseSlidePart):
     Corresponds to package files ``ppt/slideLayouts/slideLayout[1-9][0-9]*.xml``.
     """
 
+    @classmethod
+    def new(cls, partname: PackURI, package) -> SlideLayoutPart:
+        """Return a newly-created blank |SlideLayoutPart| with `partname`.
+
+        The part has a minimal valid `p:sldLayout` XML body and no
+        relationships yet; the caller wires it to its slide-master.
+        """
+        return cls(partname, CT.PML_SLIDE_LAYOUT, package, CT_SlideLayout.new())
+
     @lazyproperty
     def slide_layout(self):
         """
@@ -1034,12 +1098,58 @@ class SlideLayoutPart(BaseSlidePart):
         """Slide master from which this slide layout inherits properties."""
         return self.part_related_by(RT.SLIDE_MASTER).slide_master
 
+    def copy_shapes_from(self, source_layout_part: SlideLayoutPart) -> None:
+        """Deep-copy `source_layout_part`'s shape tree into this layout.
+
+        Every shape child of the source `p:spTree` (shapes, placeholders,
+        pictures, group shapes) is deep-copied and appended to this
+        layout's `p:spTree`. Non-structural relationships on the source
+        layout part (images, media, external hyperlinks — everything
+        except the `SLIDE_MASTER` back-relationship, which this layout
+        already owns from `add_layout`) are replicated onto this part and
+        the copied shape XML has its relationship-id attributes remapped so
+        no dangling rels remain.
+
+        The source layout part is NOT mutated (issue #19 SF4; ISC-23..29).
+        """
+        rId_map = _replicate_rels_for_layout_copy(source_layout_part, self)
+
+        dest_spTree = self._element.spTree
+        src_spTree = source_layout_part._element.spTree
+        for shape_elm in src_spTree.iter_shape_elms():
+            new_elm = copy.deepcopy(shape_elm)
+            _remap_rId_attrs(new_elm, rId_map)
+            dest_spTree.append(new_elm)
+
 
 class SlideMasterPart(BaseSlidePart):
     """Slide master part.
 
     Corresponds to package files ppt/slideMasters/slideMaster[1-9][0-9]*.xml.
     """
+
+    def add_layout(self) -> tuple[str, SlideLayout]:
+        """Create a new blank slide-layout part bound to this master.
+
+        Returns ``(rId, slide_layout)`` where `rId` is the master→layout
+        relationship id (to be registered in `p:sldLayoutIdLst`) and
+        `slide_layout` is the |SlideLayout| proxy for the new part.
+
+        The package partname is allocated via `Package.next_partname`
+        rather than upstream #1091's naive `len(layouts) + 1` scheme: this
+        fork supports `SlideLayouts.remove`, so a layout count can lag the
+        highest extant slideLayoutN.xml index and `len + 1` would collide
+        with a surviving part. `next_partname` scans for the first free
+        index and is collision-safe.
+        """
+        layout_part = SlideLayoutPart.new(
+            self._package.next_partname("/ppt/slideLayouts/slideLayout%d.xml"),
+            self._package,
+        )
+        rId = self.relate_to(layout_part, RT.SLIDE_LAYOUT)
+        # ---back-relationship layout→master, required for inheritance---
+        layout_part.relate_to(self, RT.SLIDE_MASTER)
+        return rId, layout_part.slide_layout
 
     def related_slide_layout(self, rId: str) -> SlideLayout:
         """Return |SlideLayout| related to this slide-master by key `rId`."""

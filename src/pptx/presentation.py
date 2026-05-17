@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import io
 import os
+import zipfile
 from typing import IO, TYPE_CHECKING, Iterable, cast
 
+from pptx.opc.constants import CONTENT_TYPE as CT
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.shared import PartElementProxy
 from pptx.slide import SlideMasters, Slides
@@ -86,6 +89,57 @@ class Presentation(PartElementProxy):
         # ---boundary; collapse the union to (str | IO[bytes]) for downstream---
         pkg_file: str | IO[bytes] = os.fspath(file) if isinstance(file, os.PathLike) else file
         self.part.save(pkg_file)
+
+    def save_as_potx(self, file: str | os.PathLike[str] | IO[bytes]):
+        """Write this presentation to `file` as a PowerPoint template (.potx).
+
+        The output package is byte-identical to a normal :meth:`save` except
+        that the `[Content_Types].xml` override for the main presentation
+        part (``/ppt/presentation.xml``) declares the template content-type
+        (``...presentationml.template.main+xml``) instead of the regular
+        presentation content-type. The in-memory |Presentation| is NOT
+        mutated — ``prs.part.content_type`` is unchanged after this call,
+        and a subsequent :meth:`save` still produces a normal ``.pptx``
+        (issue #19 SF2; ISC-6..11).
+
+        `file` accepts a file-path (|str| or |os.PathLike|) or a file-like
+        object open for writing bytes. Implemented by serializing to an
+        in-memory buffer, then rewriting only the presentation part's
+        content-type override into the destination; the package object
+        graph is never touched.
+        """
+        # ---serialize normally into a buffer; this leaves the in-memory
+        #    package (and prs.part.content_type) completely untouched---
+        buffer = io.BytesIO()
+        self.part.save(buffer)
+        buffer.seek(0)
+
+        presentation_main = CT.PML_PRESENTATION_MAIN
+        template_main = CT.PML_TEMPLATE_MAIN
+
+        out_buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer) as zin:
+            infos = zin.infolist()
+            with zipfile.ZipFile(out_buffer, "w", zipfile.ZIP_DEFLATED) as zout:
+                for info in infos:
+                    data = zin.read(info.filename)
+                    if info.filename == "[Content_Types].xml":
+                        # ---swap ONLY the presentation-part override; leave
+                        #    every other declared content-type intact---
+                        data = data.replace(
+                            presentation_main.encode("utf-8"),
+                            template_main.encode("utf-8"),
+                        )
+                    zout.writestr(info, data)
+
+        out_buffer.seek(0)
+        blob = out_buffer.getvalue()
+
+        if isinstance(file, (str, os.PathLike)):
+            with open(os.fspath(file), "wb") as f:
+                f.write(blob)
+        else:
+            file.write(blob)
 
     @property
     def slide_height(self) -> Length | None:

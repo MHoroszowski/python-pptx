@@ -30,8 +30,7 @@ def when_merge_cells(context, r1, r2, c1, c2):
 
 
 @when(
-    "I call table.merge_cells with range({r_start:d},{r_stop:d}) "
-    "and range({c_start:d},{c_stop:d})"
+    "I call table.merge_cells with range({r_start:d},{r_stop:d}) and range({c_start:d},{c_stop:d})"
 )
 def when_merge_cells_with_range(context, r_start, r_stop, c_start, c_stop):
     context.table_.merge_cells(range(r_start, r_stop), range(c_start, c_stop))
