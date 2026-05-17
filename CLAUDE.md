@@ -56,8 +56,9 @@ Reference `git log 253dbc87 --format=%B -n1` for the canonical shape: scope, des
 
 Concretely:
 - Agents **author** the UAT script (it's part of the deliverable per §6.3).
-- Agents **may run** the UAT — once, after the §7 trinity is green — to verify the script doesn't crash, exits non-zero on failure, and actually asserts what it claims to assert. This is QA on the test itself, not acceptance of the feature.
+- Agents **may run** the UAT — after the §7 trinity is green — to verify the script doesn't crash, exits non-zero on failure, and actually asserts what it claims to assert. This is QA on the test itself, not acceptance of the feature.
 - Agents **must not report or imply UAT signoff** in commit messages, PR bodies, or summaries. Acceptable: *"UAT script runs clean — pending maintainer visual signoff in PowerPoint/Keynote."* Not acceptable: *"UAT: PASS — round-trip confirmed."*
+- UAT files should be stored under the `./uat` subdirectory.
 - The §7 reporting trinity below (pytest + ruff + behave) is the agent's full self-verification surface. UAT execution output may be included as an attachment but it is **not** the fourth gate.
 - Round-trip / behavioral evidence within agent-runnable scope still goes through **pytest integration tests** that exercise save+reopen. If pytest can fully cover it, the UAT is just a maintainer convenience; if pytest can't, UAT becomes the maintainer's primary acceptance path.
 - If unsure whether the maintainer has delegated signoff for a particular case, the agent **stops and asks**.
