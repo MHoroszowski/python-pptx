@@ -239,14 +239,9 @@ class SlidePart(BaseSlidePart):
                 "val", chart_data.values_ref, chart_data.series_values, chart_data.number_format
             )
         elif cx_type == "histogram":
-            # numeric raw values, binned; no strDim, no dataLabels (PP ground truth)
-            plotAreaRegion.add_histogram_series(
-                name,
-                name_ref,
-                data_id=0,
-                bin_count=chart_data.bin_count,
-                bin_size=chart_data.bin_size,
-            )
+            # numeric raw values, auto-binned; no strDim, no dataLabels
+            # (PowerPoint ground truth, issue #14).
+            plotAreaRegion.add_histogram_series(name, name_ref, data_id=0)
             data_elem.add_numeric_dimension(
                 "val", chart_data.values_ref, chart_data.series_values, chart_data.number_format
             )

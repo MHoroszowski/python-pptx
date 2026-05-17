@@ -391,17 +391,21 @@ class CT_PlotAreaRegion(BaseOxmlElement):
         return series
 
     def add_histogram_series(
-        self,
-        series_name: str,
-        series_name_ref: str = "Sheet1!$A$1",
-        data_id: int = 0,
-        bin_count: int | None = None,
-        bin_size: float | None = None,
+        self, series_name: str, series_name_ref: str = "Sheet1!$A$1", data_id: int = 0
     ):
         """Add a histogram series (`layoutId="clusteredColumn"` + `<cx:binning>`).
 
-        PowerPoint emits no `<cx:dataLabels>` for a histogram (ground-truth
-        diff, issue #14), so this series omits them.
+        Emits **automatic binning** — `<cx:binning intervalClosed="r"/>` with
+        no `binCount`/`binSize` child — which is exactly the structure
+        PowerPoint itself authors and accepts (verified via ground-truth diff,
+        issue #14). The `dml-chartex.xsd` models `binCount`/`binSize` as child
+        elements and our earlier emission was schema-valid, but PowerPoint's
+        reader rejects that form and shows a repair dialog. Until a
+        PowerPoint-authored sample with explicit bins exists to confirm the
+        accepted form, manual bin specification is intentionally not emitted —
+        PowerPoint computes sensible bins from the data automatically (its own
+        default behaviour). No `<cx:dataLabels>` either (PowerPoint emits none
+        for a histogram).
         """
         from lxml import etree
 
@@ -411,14 +415,6 @@ class CT_PlotAreaRegion(BaseOxmlElement):
         layoutPr = etree.SubElement(series, qn("cx:layoutPr"))
         binning = etree.SubElement(layoutPr, qn("cx:binning"))
         binning.set("intervalClosed", "r")
-        # CT_Binning child is an xsd:choice of binSize | binCount (both optional →
-        # automatic binning, matching PowerPoint's default, when neither given).
-        if bin_size is not None:
-            bs = etree.SubElement(binning, qn("cx:binSize"))
-            bs.text = str(bin_size)
-        elif bin_count is not None:
-            bc = etree.SubElement(binning, qn("cx:binCount"))
-            bc.text = str(bin_count)
         return series
 
     def add_pareto_pair(
