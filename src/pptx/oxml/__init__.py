@@ -212,6 +212,33 @@ register_element_cls("c:x", CT_Double)
 register_element_cls("c:xMode", CT_LayoutMode)
 
 
+from pptx.oxml.comments import (  # noqa: E402
+    CT_Author,
+    CT_AuthorList,
+    CT_Comment,
+    CT_CommentAuthor,
+    CT_CommentAuthorList,
+    CT_CommentList,
+    CT_CommentPosition,
+    CT_ThreadedComment,
+    CT_ThreadedCommentList,
+    CT_ThreadedCommentReply,
+    CT_ThreadedCommentReplyList,
+)
+
+register_element_cls("p:cm", CT_Comment)
+register_element_cls("p:cmAuthor", CT_CommentAuthor)
+register_element_cls("p:cmAuthorLst", CT_CommentAuthorList)
+register_element_cls("p:cmLst", CT_CommentList)
+register_element_cls("p:pos", CT_CommentPosition)
+register_element_cls("p188:author", CT_Author)
+register_element_cls("p188:authorLst", CT_AuthorList)
+register_element_cls("p188:cm", CT_ThreadedComment)
+register_element_cls("p188:cmLst", CT_ThreadedCommentList)
+register_element_cls("p188:reply", CT_ThreadedCommentReply)
+register_element_cls("p188:replyLst", CT_ThreadedCommentReplyList)
+
+
 from pptx.oxml.coreprops import CT_CoreProperties  # noqa: E402
 
 register_element_cls("cp:coreProperties", CT_CoreProperties)

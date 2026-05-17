@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import IO, TYPE_CHECKING, Iterable
+from typing import IO, TYPE_CHECKING, Iterable, cast
 
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.opc.package import XmlPart
@@ -14,6 +14,7 @@ from pptx.util import lazyproperty
 if TYPE_CHECKING:
     from pptx.custom_properties import CustomProperties
     from pptx.custom_xml import CustomXmlParts
+    from pptx.parts.comments import AuthorsPart, CommentAuthorsPart
     from pptx.parts.coreprops import CorePropertiesPart
     from pptx.slide import HandoutMaster, NotesMaster, Slide, SlideLayout, SlideMaster
 
@@ -124,6 +125,73 @@ class PresentationPart(XmlPart):
                 "presentation has no handout master; auto-create is deferred because no "
                 "handout master template ships in this fork yet"
             ) from e
+
+    @property
+    def has_comment_authors(self) -> bool:
+        """`True` if this presentation has a legacy comment-authors part.
+
+        Non-mutating — unlike :attr:`comment_authors_part`, this never
+        creates the part. Mirrors the non-mutating ``has_*`` accessors.
+        """
+        try:
+            self.part_related_by(RT.COMMENT_AUTHORS)
+        except KeyError:
+            return False
+        return True
+
+    @lazyproperty
+    def comment_authors_part(self) -> CommentAuthorsPart:
+        """The presentation-wide |CommentAuthorsPart|, lazily created.
+
+        Mirrors :attr:`notes_master_part`: try the existing
+        ``RT.COMMENT_AUTHORS`` relationship and, only on |KeyError|, create
+        the singleton ``/ppt/commentAuthors.xml`` part and relate the
+        presentation to it. The same single part is returned on every call;
+        modern threaded comments reuse this one author list (one identity
+        registry per presentation, ISC-5 no-dup policy).
+        """
+        from pptx.parts.comments import CommentAuthorsPart
+
+        try:
+            return cast("CommentAuthorsPart", self.part_related_by(RT.COMMENT_AUTHORS))
+        except KeyError:
+            comment_authors_part = CommentAuthorsPart.new(self.package)
+            self.relate_to(comment_authors_part, RT.COMMENT_AUTHORS)
+            return comment_authors_part
+
+    @property
+    def has_authors(self) -> bool:
+        """`True` if this presentation has a MODERN authors part.
+
+        Non-mutating — unlike :attr:`authors_part`, this never creates the
+        part. Mirrors :attr:`has_comment_authors` for the modern
+        ``/ppt/authors.xml`` (issue #25).
+        """
+        try:
+            self.part_related_by(RT.AUTHORS)
+        except KeyError:
+            return False
+        return True
+
+    @lazyproperty
+    def authors_part(self) -> AuthorsPart:
+        """The presentation-wide MODERN |AuthorsPart|, lazily created.
+
+        Mirrors :attr:`comment_authors_part` but for the modern
+        ``/ppt/authors.xml`` (``RT.AUTHORS``). This is the GUID-keyed author
+        list every modern ``<p188:cm>/@authorId`` resolves into. Distinct
+        from the legacy integer-keyed ``commentAuthors.xml`` — modern
+        threaded comments must NOT use the legacy part (issue #25
+        repair-dialog root cause: orphaned modern author GUIDs).
+        """
+        from pptx.parts.comments import AuthorsPart
+
+        try:
+            return cast("AuthorsPart", self.part_related_by(RT.AUTHORS))
+        except KeyError:
+            authors_part = AuthorsPart.new(self.package)
+            self.relate_to(authors_part, RT.AUTHORS)
+            return authors_part
 
     @lazyproperty
     def presentation(self):

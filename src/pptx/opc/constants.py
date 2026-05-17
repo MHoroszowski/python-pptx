@@ -88,6 +88,16 @@ class CONTENT_TYPE:
     PML_TABLE_STYLES = (
         "application/vnd.openxmlformats-officedocument.presentationml.tableStyles+xml"
     )
+    # -- modern (2018) threaded-comments part. There is no ECMA-376 content
+    # -- type for threaded comments; PowerPoint stamps the part with this
+    # -- vendor MIME type (`[MS-PPTX]`, threaded-comments extension).
+    PML_THREADED_COMMENTS = "application/vnd.ms-powerpoint.threadedComments+xml"
+    # -- modern (2018) threaded-comment AUTHORS part. Distinct from the legacy
+    # -- `commentAuthors.xml` (ECMA-376 §19.5, integer ids): the modern
+    # -- `<p188:cm>/@authorId` is a GUID and must resolve to a
+    # -- `<p188:author>` in this part. Vendor MIME type from the [MS-PPTX]
+    # -- threaded-comments extension; partname is `/ppt/authors.xml`.
+    PML_AUTHORS = "application/vnd.ms-powerpoint.authors+xml"
     PML_TAGS = "application/vnd.openxmlformats-officedocument.presentationml.tags+xml"
     PML_TEMPLATE_MAIN = (
         "application/vnd.openxmlformats-officedocument.presentationml.template.main+xml"
@@ -301,6 +311,20 @@ class RELATIONSHIP_TYPE:
     SLIDE_UPDATE_INFO = (
         "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideUpdateInfo"
     )
+    # -- modern (2018) threaded-comments slide→part relationship. Vendor
+    # -- reltype from the MS threaded-comments extension; the slide relates
+    # -- to its modernComment_*.xml part with this type (Wave 2 wiring).
+    THREADED_COMMENT = "http://schemas.microsoft.com/office/2018/10/relationships/threadedComment"
+    # -- modern (2018) threaded-comment AUTHORS relationship. Sibling reltype
+    # -- in the same `2018/10/relationships/` family as THREADED_COMMENT; the
+    # -- PRESENTATION part (not the slide) relates to the single
+    # -- `/ppt/authors.xml` modern-authors part with this type. This is the
+    # -- `threadedCommentAuthors` member of the [MS-PPTX] threaded-comments
+    # -- extension (the relationship PowerPoint stamps from presentation.xml
+    # -- to authors.xml) — its name mirrors the THREADED_COMMENT sibling and
+    # -- is what real PowerPoint emits/expects; the bare `.../authors` form is
+    # -- not the one PowerPoint resolves `<p188:cm>/@authorId` GUIDs through.
+    AUTHORS = "http://schemas.microsoft.com/office/2018/10/relationships/threadedCommentAuthors"
     STYLES = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles"
     TABLE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table"
     TABLE_SINGLE_CELLS = (
