@@ -218,6 +218,23 @@ class Connector(BaseShape):
                 cxnSp.y = new_y
                 cxnSp.cy = dy - cy
 
+    def start_connection(self, shape, cxn_pt_idx):
+        """Issue-#18-named alias for :meth:`begin_connect`.
+
+        Connect the begin point of this connector to `shape` at connection
+        point `cxn_pt_idx`. Identical behavior to the already-shipped
+        :meth:`begin_connect`; provided so the issue-#18 API name works.
+        """
+        self.begin_connect(shape, cxn_pt_idx)
+
+    def end_connection(self, shape, cxn_pt_idx):
+        """Issue-#18-named alias for :meth:`end_connect`.
+
+        Connect the end point of this connector to `shape` at connection
+        point `cxn_pt_idx`. Identical behavior to :meth:`end_connect`.
+        """
+        self.end_connect(shape, cxn_pt_idx)
+
     def get_or_add_ln(self):
         """Helper method required by |LineFormat|."""
         return self._element.spPr.get_or_add_ln()

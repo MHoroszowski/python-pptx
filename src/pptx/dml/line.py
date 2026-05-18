@@ -309,3 +309,79 @@ class LineFormat(object):
         if ln is None:
             return None
         return ln.tailEnd
+
+    @lazyproperty
+    def head_end(self) -> "_LineEndFormat":
+        """Arrowhead at the **begin** point of the line (issue #18 SF5).
+
+        Returns a |_LineEndFormat| exposing ``type``, ``width`` and
+        ``length`` as a single object. This is the issue-#18-named
+        convenience surface over the already-shipped
+        ``begin_arrowhead_style``/``_width``/``_length`` properties — those
+        remain unchanged.
+        """
+        return _LineEndFormat(self, "head")
+
+    @lazyproperty
+    def tail_end(self) -> "_LineEndFormat":
+        """Arrowhead at the **end** point of the line (issue #18 SF5).
+
+        Issue-named convenience surface over the shipped
+        ``end_arrowhead_*`` properties; those remain unchanged.
+        """
+        return _LineEndFormat(self, "tail")
+
+
+class _LineEndFormat(object):
+    """Grouped `type` / `width` / `length` view of one line arrowhead end.
+
+    Backed entirely by the existing `LineFormat` arrowhead properties — this
+    adds the issue-#18 `head_end`/`tail_end` shape without changing or
+    duplicating the proven `begin/end_arrowhead_*` implementation.
+    """
+
+    def __init__(self, line: "LineFormat", which: str):
+        self._line = line
+        self._which = which  # "head" or "tail"
+
+    @property
+    def type(self) -> MSO_LINE_END_TYPE | None:
+        """Arrowhead style — a member of :ref:`MsoArrowheadStyle` or |None|."""
+        if self._which == "head":
+            return self._line.begin_arrowhead_style
+        return self._line.end_arrowhead_style
+
+    @type.setter
+    def type(self, value: MSO_LINE_END_TYPE | None) -> None:
+        if self._which == "head":
+            self._line.begin_arrowhead_style = value
+        else:
+            self._line.end_arrowhead_style = value
+
+    @property
+    def width(self) -> MSO_LINE_END_SIZE | None:
+        """Arrowhead width — a member of :ref:`MsoArrowheadSize` or |None|."""
+        if self._which == "head":
+            return self._line.begin_arrowhead_width
+        return self._line.end_arrowhead_width
+
+    @width.setter
+    def width(self, value: MSO_LINE_END_SIZE | None) -> None:
+        if self._which == "head":
+            self._line.begin_arrowhead_width = value
+        else:
+            self._line.end_arrowhead_width = value
+
+    @property
+    def length(self) -> MSO_LINE_END_SIZE | None:
+        """Arrowhead length — a member of :ref:`MsoArrowheadSize` or |None|."""
+        if self._which == "head":
+            return self._line.begin_arrowhead_length
+        return self._line.end_arrowhead_length
+
+    @length.setter
+    def length(self, value: MSO_LINE_END_SIZE | None) -> None:
+        if self._which == "head":
+            self._line.begin_arrowhead_length = value
+        else:
+            self._line.end_arrowhead_length = value

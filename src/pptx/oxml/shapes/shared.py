@@ -532,6 +532,8 @@ class CT_ShapeProperties(BaseOxmlElement):
         "a:ln", successors=_tag_seq[10:]
     )
     effectLst = ZeroOrOne("a:effectLst", successors=_tag_seq[11:])
+    scene3d = ZeroOrOne("a:scene3d", successors=_tag_seq[13:])
+    sp3d = ZeroOrOne("a:sp3d", successors=_tag_seq[14:])
     del _tag_seq
 
     @property
@@ -578,6 +580,23 @@ class CT_ShapeProperties(BaseOxmlElement):
 
     def _new_gradFill(self):
         return CT_GradientFillProperties.new_gradFill()
+
+    def _new_scene3d(self):
+        """Factory for `ZeroOrOne` `scene3d` — schema-valid camera+lightRig.
+
+        A bare `<a:scene3d/>` is invalid (camera and lightRig are both
+        required); PowerPoint shows a repair dialog. Lazy import avoids a
+        circular dependency with the oxml registry.
+        """
+        from pptx.oxml.shapes.threed import CT_Scene3D
+
+        return CT_Scene3D.new_scene3d()
+
+    def _new_sp3d(self):
+        """Factory for `ZeroOrOne` `sp3d` — a bare `<a:sp3d/>` is schema-valid."""
+        from pptx.oxml.shapes.threed import CT_Shape3D
+
+        return CT_Shape3D.new_sp3d()
 
 
 class CT_Transform2D(BaseOxmlElement):
