@@ -299,3 +299,51 @@ class PP_AUTO_NUMBER_STYLE(BaseXmlEnum):
 
     ALPHA_LC_PAREN_BOTH = (12, "alphaLcParenBoth", "Lowercase letters in parentheses: (a) (b) (c)")
     """Lowercase letters in parentheses: (a) (b) (c)"""
+
+
+class MSO_TEXT_STRIKE_TYPE(BaseXmlEnum):
+    """Specifies the strikethrough style of text.
+
+    Used with :attr:`.Font.strike`. Maps to the OOXML `a:rPr/@strike`
+    attribute (`ST_TextStrikeType`). Issue #16 SF2.
+
+    MS API Name: (no direct VBA equivalent — modeled on `MsoTextStrike`).
+    """
+
+    NONE = (0, "noStrike", "No strikethrough.")
+    """No strikethrough."""
+
+    SINGLE = (1, "sngStrike", "A single-line strikethrough.")
+    """A single-line strikethrough."""
+
+    DOUBLE = (2, "dblStrike", "A double-line strikethrough.")
+    """A double-line strikethrough."""
+
+
+class MSO_TEXT_DIRECTION(BaseXmlEnum):
+    """Specifies the flow direction of text in a text frame.
+
+    Used with :attr:`.TextFrame.text_direction`. Maps to the OOXML
+    `a:bodyPr/@vert` attribute (`ST_TextVerticalType`). Issue #16 SF7.
+    """
+
+    HORIZONTAL = (0, "horz", "Horizontal text (the default).")
+    """Horizontal text (the default)."""
+
+    VERTICAL = (1, "vert", "Vertical text, rotated 90° clockwise.")
+    """Vertical text, rotated 90° clockwise."""
+
+    VERTICAL_270 = (2, "vert270", "Vertical text, rotated 270° clockwise.")
+    """Vertical text, rotated 270° clockwise."""
+
+    WORD_ART_VERTICAL = (3, "wordArtVert", "WordArt-style stacked vertical text.")
+    """WordArt-style stacked vertical text."""
+
+    EAST_ASIAN_VERTICAL = (4, "eaVert", "East-Asian vertical text.")
+    """East-Asian vertical text."""
+
+    MONGOLIAN_VERTICAL = (5, "mongolianVert", "Mongolian vertical text.")
+    """Mongolian vertical text."""
+
+    WORD_ART_VERTICAL_RTL = (6, "wordArtVertRtl", "Right-to-left WordArt vertical text.")
+    """Right-to-left WordArt vertical text."""

@@ -669,6 +669,37 @@ class ST_TextFontSize(BaseIntType):
         cls.validate_int_in_range(value, 100, 400000)
 
 
+class ST_TextPoint(BaseIntType):
+    """Signed text point measure in 1/100 pt, e.g. character spacing `spc`.
+
+    OOXML ST_TextPointUnqualified is `xsd:int` restricted to
+    -400000..400000 (-4000..4000 pt). Negative values tighten spacing.
+    """
+
+    @classmethod
+    def validate(cls, value):
+        cls.validate_int_in_range(value, -400000, 400000)
+
+
+class ST_TextNonNegativePoint(BaseIntType):
+    """Non-negative text point measure in 1/100 pt, e.g. kerning `kern`.
+
+    OOXML ST_TextNonNegativePoint restricts to 0..400000.
+    """
+
+    @classmethod
+    def validate(cls, value):
+        cls.validate_int_in_range(value, 0, 400000)
+
+
+class ST_TextColumnCount(BaseIntType):
+    """Text column count, 1..16 inclusive (OOXML ST_TextColumnCount)."""
+
+    @classmethod
+    def validate(cls, value):
+        cls.validate_int_in_range(value, 1, 16)
+
+
 class ST_TextIndentLevelType(BaseIntType):
     @classmethod
     def validate(cls, value):

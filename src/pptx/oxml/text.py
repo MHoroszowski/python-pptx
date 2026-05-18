@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Callable, cast
 from pptx.enum.lang import MSO_LANGUAGE_ID
 from pptx.enum.text import (
     MSO_AUTO_SIZE,
+    MSO_TEXT_DIRECTION,
+    MSO_TEXT_STRIKE_TYPE,
     MSO_TEXT_UNDERLINE_TYPE,
     MSO_VERTICAL_ANCHOR,
     PP_PARAGRAPH_ALIGNMENT,
@@ -19,9 +21,13 @@ from pptx.oxml.ns import nsdecls
 from pptx.oxml.simpletypes import (
     ST_Coordinate32,
     ST_FieldType,
+    ST_Percentage,
+    ST_TextColumnCount,
     ST_TextFontScalePercentOrPercentString,
     ST_TextFontSize,
     ST_TextIndentLevelType,
+    ST_TextNonNegativePoint,
+    ST_TextPoint,
     ST_TextSpacingPercentOrPercentString,
     ST_TextSpacingPoint,
     ST_TextTypeface,
@@ -226,6 +232,18 @@ class CT_TextBodyProperties(BaseOxmlElement):
     wrap: str | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
         "wrap", ST_TextWrappingType
     )
+    numCol: int | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "numCol", ST_TextColumnCount
+    )
+    spcCol: Length | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "spcCol", ST_Coordinate32
+    )
+    rtlCol: bool | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "rtlCol", XsdBoolean
+    )
+    vert: MSO_TEXT_DIRECTION | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "vert", MSO_TEXT_DIRECTION
+    )
 
     @property
     def autofit(self):
@@ -262,7 +280,13 @@ class CT_TextCharacterProperties(BaseOxmlElement):
 
     get_or_add_hlinkClick: Callable[[], CT_Hyperlink]
     get_or_add_latin: Callable[[], CT_TextFont]
+    get_or_add_highlight: Callable[[], BaseOxmlElement]
+    get_or_add_ea: Callable[[], CT_TextFont]
+    get_or_add_cs: Callable[[], CT_TextFont]
     _remove_latin: Callable[[], None]
+    _remove_highlight: Callable[[], None]
+    _remove_ea: Callable[[], None]
+    _remove_cs: Callable[[], None]
     _remove_hlinkClick: Callable[[], None]
 
     eg_fillProperties = ZeroOrOneChoice(
@@ -292,6 +316,27 @@ class CT_TextCharacterProperties(BaseOxmlElement):
             "a:extLst",
         ),
     )
+    # ---OOXML a:rPr child order (dml-main.xsd CT_TextCharacterProperties):
+    # ---ln, fill, effectLst/effectDag, highlight, uLnTx/uLn/uFillTx/uFill,
+    # ---latin, ea, cs, sym, hlinkClick, hlinkMouseOver, rtl, extLst.
+    # ---Emitting a child out of this order is a silent PowerPoint repair.
+    highlight: BaseOxmlElement | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
+        "a:highlight",
+        successors=(
+            "a:uLnTx",
+            "a:uLn",
+            "a:uFillTx",
+            "a:uFill",
+            "a:latin",
+            "a:ea",
+            "a:cs",
+            "a:sym",
+            "a:hlinkClick",
+            "a:hlinkMouseOver",
+            "a:rtl",
+            "a:extLst",
+        ),
+    )
     latin: CT_TextFont | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
         "a:latin",
         successors=(
@@ -303,6 +348,21 @@ class CT_TextCharacterProperties(BaseOxmlElement):
             "a:rtl",
             "a:extLst",
         ),
+    )
+    ea: CT_TextFont | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
+        "a:ea",
+        successors=(
+            "a:cs",
+            "a:sym",
+            "a:hlinkClick",
+            "a:hlinkMouseOver",
+            "a:rtl",
+            "a:extLst",
+        ),
+    )
+    cs: CT_TextFont | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
+        "a:cs",
+        successors=("a:sym", "a:hlinkClick", "a:hlinkMouseOver", "a:rtl", "a:extLst"),
     )
     hlinkClick: CT_Hyperlink | None = ZeroOrOne(  # pyright: ignore[reportAssignmentType]
         "a:hlinkClick", successors=("a:hlinkMouseOver", "a:rtl", "a:extLst")
@@ -318,6 +378,18 @@ class CT_TextCharacterProperties(BaseOxmlElement):
     i: bool | None = OptionalAttribute("i", XsdBoolean)  # pyright: ignore[reportAssignmentType]
     u: MSO_TEXT_UNDERLINE_TYPE | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
         "u", MSO_TEXT_UNDERLINE_TYPE
+    )
+    strike: MSO_TEXT_STRIKE_TYPE | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "strike", MSO_TEXT_STRIKE_TYPE
+    )
+    baseline: int | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "baseline", ST_Percentage
+    )
+    spc: int | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "spc", ST_TextPoint
+    )
+    kern: int | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "kern", ST_TextNonNegativePoint
     )
 
     def _new_gradFill(self):
@@ -417,6 +489,9 @@ class CT_TextNormalAutofit(BaseOxmlElement):
 
     fontScale = OptionalAttribute(
         "fontScale", ST_TextFontScalePercentOrPercentString, default=100.0
+    )
+    lnSpcReduction = OptionalAttribute(
+        "lnSpcReduction", ST_TextSpacingPercentOrPercentString, default=0.0
     )
 
 
@@ -544,6 +619,9 @@ class CT_TextParagraphProperties(BaseOxmlElement):
         "lvl", ST_TextIndentLevelType, default=0
     )
     algn: PP_PARAGRAPH_ALIGNMENT | None = OptionalAttribute("algn", PP_PARAGRAPH_ALIGNMENT)  # pyright: ignore[reportAssignmentType]
+    rtl: bool | None = OptionalAttribute(  # pyright: ignore[reportAssignmentType]
+        "rtl", XsdBoolean
+    )
     del _tag_seq
 
     @property
