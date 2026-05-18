@@ -40,6 +40,22 @@ class TextFitter(tuple):
         sizes = _BinarySearchTree.from_ordered_sequence(range(1, int(max_size) + 1))
         return sizes.find_max(predicate)
 
+    @classmethod
+    def wrapped_line_count(cls, text: str, width: "Length", font_file: str, point_size: int) -> int:
+        """Number of lines `text` wraps to at `point_size` within `width`.
+
+        Used by overflow detection (issue #16 SF9). Height is irrelevant
+        here so 0 is passed for it.
+        """
+        line_source = _LineSource(text)
+        fitter = cls(line_source, (width, 0), font_file)
+        return len(fitter._wrap_lines(line_source, point_size))
+
+    @staticmethod
+    def line_height(point_size: int, font_file: str) -> int:
+        """Rendered single-line height in EMU at `point_size` (issue #16 SF9)."""
+        return _rendered_size("Ty", point_size, font_file)[1]
+
     def _break_line(self, line_source, point_size):
         """
         Return a (line, remainder) pair where *line* is the longest line in
@@ -48,7 +64,19 @@ class TextFitter(tuple):
         """
         lines = _BinarySearchTree.from_ordered_sequence(line_source)
         predicate = self._fits_in_width_predicate(point_size)
-        return lines.find_max(predicate)
+        best = lines.find_max(predicate)
+        if best is None:
+            # ---issue #16 SF11 / scanny#168: a single word wider than the
+            # ---frame makes every width predicate False, so find_max
+            # ---returns None and the old code crashed unpacking it. Force-
+            # ---accept the shortest candidate (first word): it overflows
+            # ---the width — matching PowerPoint, which just clips a long
+            # ---word — but consumes >=1 word so _wrap_lines terminates.
+            try:
+                best = next(iter(line_source))
+            except StopIteration:
+                best = _Line("", _LineSource(""))
+        return best
 
     def _fits_in_width_predicate(self, point_size):
         """

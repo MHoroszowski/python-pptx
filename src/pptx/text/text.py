@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Iterator, cast
+from typing import TYPE_CHECKING, Iterator, NamedTuple, cast
 
 from pptx.dml.fill import FillFormat
 from pptx.enum.dml import MSO_FILL
 from pptx.enum.lang import MSO_LANGUAGE_ID
 from pptx.enum.text import (
     MSO_AUTO_SIZE,
+    MSO_TEXT_DIRECTION,
+    MSO_TEXT_STRIKE_TYPE,
     MSO_UNDERLINE,
     MSO_VERTICAL_ANCHOR,
     PP_AUTO_NUMBER_STYLE,
@@ -39,6 +41,20 @@ if TYPE_CHECKING:
         CT_TextParagraphProperties,
     )
     from pptx.types import ProvidesExtents, ProvidesPart
+
+
+class _OverflowInfo(NamedTuple):
+    """Structured result of :meth:`TextFrame.overflow_info` (issue #16 SF9).
+
+    `overflows` is the boolean answer; the other fields expose the rendered
+    vs. available extents so callers can report *by how much* and which
+    dimension (height) is limiting.
+    """
+
+    overflows: bool
+    required_height: Length
+    available_height: Length
+    available_width: Length
 
 
 class TextFrame(Subshape):
@@ -223,6 +239,141 @@ class TextFrame(Subshape):
             False: ST_TextWrappingType.NONE,
             None: None,
         }[value]
+
+    @property
+    def columns(self) -> int:
+        """Number of text columns in this text frame (issue #16 SF6).
+
+        Read/write int in range 1..16, backed by `a:bodyPr/@numCol`.
+        Returns 1 when no explicit value is set. Assigning a value outside
+        1..16 raises |ValueError|.
+        """
+        numCol = self._bodyPr.numCol
+        return 1 if numCol is None else numCol
+
+    @columns.setter
+    def columns(self, value: int):
+        if not isinstance(value, int) or value < 1 or value > 16:
+            raise ValueError(f"columns must be an int in range 1..16, got {value!r}")
+        self._bodyPr.numCol = value
+
+    @property
+    def column_spacing(self) -> Length | None:
+        """Spacing between text columns as a |Length| (issue #16 SF6).
+
+        Backed by `a:bodyPr/@spcCol` (EMU). |None| when unset; assigning
+        |None| removes the attribute.
+        """
+        spcCol = self._bodyPr.spcCol
+        if spcCol is None:
+            return None
+        return Emu(spcCol)
+
+    @column_spacing.setter
+    def column_spacing(self, value: Length | None):
+        self._bodyPr.spcCol = None if value is None else Emu(value)
+
+    @property
+    def text_direction(self) -> MSO_TEXT_DIRECTION | None:
+        """Flow direction of text in this frame (issue #16 SF7).
+
+        A member of :ref:`MsoTextDirection` (e.g. `VERTICAL`, `EAST_ASIAN_
+        VERTICAL`) or |None| when inherited. Backed by `a:bodyPr/@vert`.
+        Assigning |None| removes the attribute.
+        """
+        return self._bodyPr.vert
+
+    @text_direction.setter
+    def text_direction(self, value: MSO_TEXT_DIRECTION | None):
+        self._bodyPr.vert = value
+
+    def overflow_info(
+        self,
+        font_family: str = "Calibri",
+        bold: bool = False,
+        italic: bool = False,
+        font_file: str | None = None,
+    ) -> "_OverflowInfo":
+        """Return a structured report on whether this text overflows its shape.
+
+        Read-only: does NOT modify the text frame or set autofit (issue #16
+        SF9, closes scanny/python-pptx#1114). The report names the rendered
+        vs. available height for the frame's text wrapped at the largest run
+        font size present (defaulting to 18pt), using the metrics of the
+        font described by `font_family`/`bold`/`italic` (or `font_file`).
+        """
+        avail_w, avail_h = self._extents
+        text = self.text
+        if text == "":
+            return _OverflowInfo(False, Emu(0), Length(avail_h), Length(avail_w))
+        if font_file is None:
+            font_file = FontFiles.find(font_family, bold, italic)
+        point_size = self._max_run_point_size()
+        n_lines = TextFitter.wrapped_line_count(text, avail_w, font_file, point_size)
+        line_cy = TextFitter.line_height(point_size, font_file)
+        required_h = Length(line_cy * n_lines)
+        return _OverflowInfo(
+            overflows=required_h > avail_h,
+            required_height=required_h,
+            available_height=Length(avail_h),
+            available_width=Length(avail_w),
+        )
+
+    def will_overflow(
+        self,
+        font_family: str = "Calibri",
+        bold: bool = False,
+        italic: bool = False,
+        font_file: str | None = None,
+    ) -> bool:
+        """`True` if this text frame's content would overflow its shape.
+
+        Thin boolean over :meth:`overflow_info` (issue #16 SF9). Read-only.
+        """
+        return self.overflow_info(font_family, bold, italic, font_file).overflows
+
+    def shrink_text_to_fit(
+        self,
+        font_family: str = "Calibri",
+        max_size: int = 18,
+        bold: bool = False,
+        italic: bool = False,
+        font_file: str | None = None,
+    ):
+        """Eagerly shrink text via `normAutofit` so it fits without reopen.
+
+        Sets `auto_size` to `TEXT_TO_FIT_SHAPE` and writes a computed
+        `a:normAutofit/@fontScale` so the text fits inside the shape
+        immediately — without depending on PowerPoint to recompute the
+        scale on open (issue #16 SF10, closes scanny/python-pptx#1107). Run
+        `sz` values are left unchanged (the scale is applied by the
+        renderer). No-op on an empty text frame.
+        """
+        if self.text == "":
+            return
+        self.word_wrap = True
+        self.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        max_pt = self._max_run_point_size(default=max_size)
+        best = self._best_fit_font_size(font_family, max_pt, bold, italic, font_file)
+        scale = max(1.0, min(100.0, (best / max_pt) * 100.0))
+        normAutofit = self._bodyPr.normAutofit
+        if normAutofit is not None:
+            normAutofit.fontScale = scale
+
+    def _max_run_point_size(self, default: int = 18) -> int:
+        """Largest explicit run font size in this frame, in whole points.
+
+        Falls back to `default` when no run sets an explicit size. Reads the
+        `a:rPr/@sz` directly off each run element and never creates an
+        `a:rPr` — `overflow_info`/`will_overflow` must be read-only (ISC-68).
+        """
+        sizes: list[int] = []
+        for p in self._txBody.p_lst:
+            for r in p.r_lst:
+                rPr = r.rPr  # ZeroOrOne — None when absent, no mutation
+                if rPr is not None and rPr.sz is not None:
+                    sizes.append(int(round(Centipoints(rPr.sz).pt)))
+        return max(sizes) if sizes else default
 
     def _apply_fit(self, font_family: str, font_size: int, is_bold: bool, is_italic: bool):
         """Arrange text in this text frame to fit inside its extents.
@@ -436,6 +587,208 @@ class Font(object):
             value = MSO_UNDERLINE.NONE
         self._element.u = value
 
+    @property
+    def strike(self) -> MSO_TEXT_STRIKE_TYPE | None:
+        """Strikethrough setting for this font (issue #16 SF2).
+
+        A member of :ref:`MsoTextStrikeType` (`NONE`/`SINGLE`/`DOUBLE`) or
+        |None| when no explicit value is set (inherited from the style
+        hierarchy). Assigning |None| removes the attribute (restoring
+        inheritance); assigning `MSO_TEXT_STRIKE_TYPE.NONE` writes an
+        explicit `strike="noStrike"`.
+        """
+        return self._rPr.strike
+
+    @strike.setter
+    def strike(self, value: MSO_TEXT_STRIKE_TYPE | None):
+        self._rPr.strike = value
+
+    @property
+    def superscript(self) -> bool | None:
+        """Whether this font is superscript (issue #16 SF1).
+
+        Backed by `a:rPr/@baseline` (a signed percentage). |True| when the
+        baseline is positive, |False| when it is zero/negative, |None| when
+        no baseline is set. Assigning |True| sets a +30% baseline; |False|
+        or |None| removes the baseline (and thus any subscript too —
+        super/subscript are mutually exclusive).
+        """
+        baseline = self._rPr.baseline
+        if baseline is None:
+            return None
+        return baseline > 0
+
+    @superscript.setter
+    def superscript(self, value: bool | None):
+        if value:
+            # ---ST_Percentage python value is a fraction: 0.30 -> "30000"
+            self._rPr.baseline = 0.30
+        else:
+            self._rPr.baseline = None
+
+    @property
+    def subscript(self) -> bool | None:
+        """Whether this font is subscript (issue #16 SF1).
+
+        Backed by `a:rPr/@baseline`. |True| when the baseline is negative,
+        |False| when zero/positive, |None| when unset. Assigning |True| sets
+        a -25% baseline; |False|/|None| removes the baseline.
+        """
+        baseline = self._rPr.baseline
+        if baseline is None:
+            return None
+        return baseline < 0
+
+    @subscript.setter
+    def subscript(self, value: bool | None):
+        if value:
+            # ---fraction: -0.25 -> "-25000"
+            self._rPr.baseline = -0.25
+        else:
+            self._rPr.baseline = None
+
+    @property
+    def character_spacing(self) -> Length | None:
+        """Inter-character spacing (`a:rPr/@spc`) as a |Length| (issue #16 SF4).
+
+        Read/write. |None| when no explicit value is set. Negative values
+        tighten spacing, positive values loosen it. Assigning |None| removes
+        the attribute.
+        """
+        spc = self._rPr.spc
+        if spc is None:
+            return None
+        return Centipoints(spc)
+
+    @character_spacing.setter
+    def character_spacing(self, value: Length | None):
+        if value is None:
+            self._rPr.spc = None
+        else:
+            self._rPr.spc = Emu(value).centipoints
+
+    @property
+    def kerning(self) -> Length | None:
+        """Minimum font size at which kerning is applied (`a:rPr/@kern`).
+
+        Read/write |Length| or |None| (issue #16 SF4). Non-negative.
+        """
+        kern = self._rPr.kern
+        if kern is None:
+            return None
+        return Centipoints(kern)
+
+    @kerning.setter
+    def kerning(self, value: Length | None):
+        if value is None:
+            self._rPr.kern = None
+        else:
+            self._rPr.kern = Emu(value).centipoints
+
+    @property
+    def latin(self) -> str | None:
+        """The Latin-script typeface name (`a:rPr/a:latin`) (issue #16 SF5).
+
+        Equivalent to :attr:`name`; provided so the latin/east-asian/
+        complex-script trio reads symmetrically. Assigning |None| removes
+        the `<a:latin>` child.
+        """
+        return self.name
+
+    @latin.setter
+    def latin(self, value: str | None):
+        self.name = value
+
+    @property
+    def east_asian(self) -> str | None:
+        """The East-Asian typeface name (`a:rPr/a:ea`) (issue #16 SF5).
+
+        Independent of :attr:`name`/:attr:`latin` — setting this never
+        touches `<a:latin>`. Assigning |None| removes the `<a:ea>` child.
+        """
+        ea = self._rPr.ea
+        if ea is None:
+            return None
+        return ea.typeface
+
+    @east_asian.setter
+    def east_asian(self, value: str | None):
+        if value is None:
+            self._rPr._remove_ea()  # pyright: ignore[reportPrivateUsage]
+        else:
+            self._rPr.get_or_add_ea().typeface = value
+
+    @property
+    def complex_script(self) -> str | None:
+        """The complex-script typeface name (`a:rPr/a:cs`) (issue #16 SF5).
+
+        Independent of :attr:`name`/:attr:`latin`. Assigning |None| removes
+        the `<a:cs>` child.
+        """
+        cs = self._rPr.cs
+        if cs is None:
+            return None
+        return cs.typeface
+
+    @complex_script.setter
+    def complex_script(self, value: str | None):
+        if value is None:
+            self._rPr._remove_cs()  # pyright: ignore[reportPrivateUsage]
+        else:
+            self._rPr.get_or_add_cs().typeface = value
+
+    @lazyproperty
+    def highlight(self) -> "_HighlightColor":
+        """Text highlight color (`a:rPr/a:highlight`) (issue #16 SF3).
+
+        Returns a |_HighlightColor| proxy. Reading `.rgb` when no highlight
+        is set returns |None| and does NOT mutate the XML; assigning `.rgb`
+        materializes `<a:highlight>` (schema-ordered before the typeface
+        trio).
+        """
+        return _HighlightColor(self._rPr)
+
+
+class _HighlightColor:
+    """Lazy `<a:highlight>` color proxy for :attr:`Font.highlight` (issue #16 SF3).
+
+    Read of `.rgb`/`.type` when no `<a:highlight>` is present returns |None|
+    without touching the XML; writing `.rgb` creates the element on demand.
+    """
+
+    def __init__(self, rPr: "CT_TextCharacterProperties"):
+        self._rPr = rPr
+
+    @property
+    def type(self):
+        from pptx.dml.color import ColorFormat
+
+        hl = self._rPr.highlight
+        if hl is None:
+            return None
+        return ColorFormat.from_colorchoice_parent(hl).type
+
+    @property
+    def rgb(self):
+        from pptx.dml.color import ColorFormat
+
+        hl = self._rPr.highlight
+        if hl is None:
+            return None
+        return ColorFormat.from_colorchoice_parent(hl).rgb
+
+    @rgb.setter
+    def rgb(self, value):
+        from pptx.dml.color import ColorFormat
+
+        hl = self._rPr.get_or_add_highlight()
+        ColorFormat.from_colorchoice_parent(hl).rgb = value
+
+    @property
+    def visible(self) -> bool:
+        """|True| if an `<a:highlight>` element is present."""
+        return self._rPr.highlight is not None
+
 
 class _LazyFontColorFormat:
     """ColorFormat-shaped proxy that defers `<a:solidFill/>` creation until first SET.
@@ -612,6 +965,24 @@ class _Paragraph(Subshape):
     @alignment.setter
     def alignment(self, value: PP_PARAGRAPH_ALIGNMENT | None):
         self._pPr.algn = value
+
+    @property
+    def rtl(self) -> bool | None:
+        """Right-to-left setting for this paragraph (issue #16 SF8).
+
+        Backed by `a:pPr/@rtl`. |True| flows the paragraph right-to-left
+        (Arabic, Hebrew, Persian); |False| forces left-to-right; |None|
+        (default) removes the attribute so direction is inherited.
+        PowerPoint performs the actual bidi shaping.
+        """
+        pPr = self._p.pPr
+        if pPr is None:
+            return None
+        return pPr.rtl
+
+    @rtl.setter
+    def rtl(self, value: bool | None):
+        self._pPr.rtl = value
 
     @property
     def bullet_char(self) -> str | None:
