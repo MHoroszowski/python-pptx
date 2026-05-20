@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import io
+
 import pytest
 
+from pptx import Presentation
 from pptx.dml.color import ColorFormat
-from pptx.dml.fill import FillFormat, _NoFill, _SolidFill
+from pptx.dml.fill import FillFormat, _GradientStop, _NoFill, _SolidFill
 from pptx.enum.dml import MSO_FILL
+from pptx.enum.shapes import MSO_SHAPE
+from pptx.oxml import parse_xml
+from pptx.oxml.ns import nsdecls, qn
+from pptx.util import Inches
 
 from ..oxml.unitdata.dml import a_alpha, a_solidFill, an_srgbClr
 
@@ -278,3 +285,175 @@ class DescribeTransparencyIntegration(object):
                 assert alpha_elm is not None
                 expected_alpha = 1.0 - transparency
                 assert abs(alpha_elm.val - expected_alpha) < 0.001
+
+
+class DescribeGradientStopTransparency(object):
+    """Unit-test suite for transparency on a single gradient stop.
+
+    Covers issue #17 follow-up: `_GradientStop.color` returns a `ColorFormat`,
+    so the PR #30 transparency surface should flow through transitively. These
+    tests pin the behavior in so a future refactor of either side can't
+    silently regress it.
+    """
+
+    def it_reads_zero_transparency_when_stop_has_no_alpha(self):
+        gs = self._gs_with_srgb("FF0000")
+        color_format = ColorFormat.from_colorchoice_parent(gs)
+
+        assert color_format.transparency == 0.0
+
+    def it_reads_transparency_from_alpha_under_srgbClr(self):
+        gs = self._gs_with_srgb("FF0000", alpha_val=50000)
+        color_format = ColorFormat.from_colorchoice_parent(gs)
+
+        assert abs(color_format.transparency - 0.5) < 0.001
+
+    def it_reads_transparency_from_alpha_under_schemeClr(self):
+        gs = self._gs_with_scheme("accent1", alpha_val=30000)
+        color_format = ColorFormat.from_colorchoice_parent(gs)
+
+        assert abs(color_format.transparency - 0.7) < 0.001
+
+    def it_writes_alpha_under_srgbClr_when_setting_transparency(self):
+        gs = self._gs_with_srgb("FF0000")
+        color_format = ColorFormat.from_colorchoice_parent(gs)
+
+        color_format.transparency = 0.5
+
+        srgbClr = gs.find(qn("a:srgbClr"))
+        alpha = srgbClr.find(qn("a:alpha"))
+        assert alpha is not None, "alpha must be placed under <a:srgbClr>, not <a:gs>"
+        assert abs(alpha.val - 0.5) < 0.001
+
+    def it_writes_alpha_under_schemeClr_when_setting_transparency(self):
+        gs = self._gs_with_scheme("accent1")
+        color_format = ColorFormat.from_colorchoice_parent(gs)
+
+        color_format.transparency = 0.6
+
+        schemeClr = gs.find(qn("a:schemeClr"))
+        alpha = schemeClr.find(qn("a:alpha"))
+        assert alpha is not None, "alpha must be placed under <a:schemeClr>, not <a:gs>"
+        assert abs(alpha.val - 0.4) < 0.001
+
+    def it_clears_alpha_when_setting_transparency_to_zero(self):
+        gs = self._gs_with_srgb("FF0000", alpha_val=40000)
+        color_format = ColorFormat.from_colorchoice_parent(gs)
+
+        assert abs(color_format.transparency - 0.6) < 0.001
+
+        color_format.transparency = 0.0
+
+        srgbClr = gs.find(qn("a:srgbClr"))
+        assert srgbClr.find(qn("a:alpha")) is None
+        assert color_format.transparency == 0.0
+
+    def it_raises_on_out_of_range_value(self):
+        gs = self._gs_with_srgb("FF0000")
+        color_format = ColorFormat.from_colorchoice_parent(gs)
+
+        with pytest.raises(ValueError, match="transparency must be number in range 0.0 to 1.0"):
+            color_format.transparency = 1.1
+        with pytest.raises(ValueError, match="transparency must be number in range 0.0 to 1.0"):
+            color_format.transparency = -0.1
+
+    def it_raises_on_set_when_stop_has_no_color_choice(self):
+        gs = parse_xml('<a:gs %s pos="50000"/>' % nsdecls("a"))
+        color_format = ColorFormat.from_colorchoice_parent(gs)
+
+        with pytest.raises(ValueError, match="can't set transparency when color.type is None"):
+            color_format.transparency = 0.5
+
+    def it_exposes_transparency_through_GradientStop_color(self):
+        gs = self._gs_with_srgb("FF0000")
+        stop = _GradientStop(gs)
+
+        stop.color.transparency = 0.25
+
+        assert abs(stop.color.transparency - 0.25) < 0.001
+        srgbClr = gs.find(qn("a:srgbClr"))
+        alpha = srgbClr.find(qn("a:alpha"))
+        assert alpha is not None
+        assert abs(alpha.val - 0.75) < 0.001
+
+    # helpers --------------------------------------------------------
+
+    @staticmethod
+    def _gs_with_srgb(val, alpha_val=None):
+        alpha = f'<a:alpha val="{alpha_val}"/>' if alpha_val is not None else ""
+        xml = ('<a:gs %s pos="50000"><a:srgbClr val="%s">%s</a:srgbClr></a:gs>') % (
+            nsdecls("a"),
+            val,
+            alpha,
+        )
+        return parse_xml(xml)
+
+    @staticmethod
+    def _gs_with_scheme(val, alpha_val=None):
+        alpha = f'<a:alpha val="{alpha_val}"/>' if alpha_val is not None else ""
+        xml = ('<a:gs %s pos="50000"><a:schemeClr val="%s">%s</a:schemeClr></a:gs>') % (
+            nsdecls("a"),
+            val,
+            alpha,
+        )
+        return parse_xml(xml)
+
+
+class DescribeGradientStopTransparencyRoundTrip(object):
+    """End-to-end round-trip for gradient stop transparency.
+
+    The pure XML tests above prove the API and OOXML placement. This class
+    proves a real Presentation survives save+reopen with transparency intact
+    on its gradient stops — the closest thing to the actual user surface
+    short of a UAT visual check.
+    """
+
+    def it_round_trips_transparency_on_default_gradient_stops(self):
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[5])
+        shape = slide.shapes.add_shape(
+            MSO_SHAPE.RECTANGLE, Inches(1), Inches(1), Inches(3), Inches(2)
+        )
+        shape.fill.gradient()
+        stops = shape.fill.gradient_stops
+        stops[0].color.transparency = 0.0
+        stops[1].color.transparency = 0.5
+
+        buf = io.BytesIO()
+        prs.save(buf)
+        buf.seek(0)
+
+        prs2 = Presentation(buf)
+        stops2 = prs2.slides[0].shapes[1].fill.gradient_stops
+        assert stops2[0].color.transparency == 0.0
+        assert abs(stops2[1].color.transparency - 0.5) < 0.001
+
+    def it_persists_alpha_inside_color_choice_not_on_gs(self):
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[5])
+        shape = slide.shapes.add_shape(
+            MSO_SHAPE.RECTANGLE, Inches(1), Inches(1), Inches(2), Inches(1)
+        )
+        shape.fill.gradient()
+        shape.fill.gradient_stops[1].color.transparency = 0.4
+
+        buf = io.BytesIO()
+        prs.save(buf)
+        buf.seek(0)
+        prs2 = Presentation(buf)
+        shape2 = prs2.slides[0].shapes[1]
+
+        gs_list = shape2.fill._xPr.findall(
+            ".//" + qn("a:gradFill") + "/" + qn("a:gsLst") + "/" + qn("a:gs")
+        )
+        assert len(gs_list) == 2
+        gs_with_alpha = gs_list[1]
+        # alpha must live under the color choice element, NOT directly on <a:gs>
+        assert gs_with_alpha.find(qn("a:alpha")) is None
+        color_choice = gs_with_alpha.find(qn("a:schemeClr"))
+        if color_choice is None:
+            color_choice = gs_with_alpha.find(qn("a:srgbClr"))
+        assert color_choice is not None
+        alpha = color_choice.find(qn("a:alpha"))
+        assert alpha is not None
+        assert abs(alpha.val - 0.6) < 0.001
