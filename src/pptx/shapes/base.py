@@ -69,6 +69,20 @@ class BaseShape(object):
         cNvPr = self._element._nvXxPr.cNvPr  # pyright: ignore[reportPrivateUsage]
         return ActionSetting(cNvPr, self)
 
+    @lazyproperty
+    def hover_action(self) -> ActionSetting:
+        """|ActionSetting| instance providing access to mouse-over behaviors.
+
+        The hover action is the behavior triggered when the mouse pointer is
+        positioned over this shape during a slide show, stored as an
+        `a:hlinkHover` element on the shape's `p:cNvPr` (parallel to the
+        `a:hlinkClick` of :attr:`click_action`). It is independent of the click
+        action — a shape may define both. An |ActionSetting| object is always
+        returned, even when no hover behavior is defined.
+        """
+        cNvPr = self._element._nvXxPr.cNvPr  # pyright: ignore[reportPrivateUsage]
+        return ActionSetting(cNvPr, self, hover=True)
+
     @property
     def element(self) -> ShapeElement:
         """`lxml` element for this shape, e.g. a CT_Shape instance.

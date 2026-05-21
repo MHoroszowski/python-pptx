@@ -895,9 +895,14 @@ class _Hyperlink(Subshape):
 
         Read/write. URL can be on http, https, mailto, or file scheme; others may work.
         """
-        if self._hlinkClick is None:
+        hlink = self._hlinkClick
+        if hlink is None:
             return None
-        return self.part.target_ref(self._hlinkClick.rId)
+        # -- a tooltip-only or action-only hlink has no relationship/URL --
+        rId = hlink.rId
+        if not rId:
+            return None
+        return self.part.target_ref(rId)
 
     @address.setter
     def address(self, url: str | None):
@@ -906,6 +911,71 @@ class _Hyperlink(Subshape):
             self._remove_hlinkClick()
         if url:
             self._add_hlinkClick(url)
+
+    @property
+    def color(self):
+        """The |ColorFormat| controlling this hyperlink run's text color.
+
+        Closes scanny/python-pptx#940 and #821 — a hyperlink run inherits the
+        theme hyperlink color by default; assigning ``run.hyperlink.color.rgb``
+        writes an explicit `a:solidFill` color override on the run's `a:rPr`.
+        Reuses the same lazy, non-mutating color machinery as :attr:`Font.color`
+        (reading does not materialize `a:solidFill`).
+        """
+        return Font(self._rPr).color
+
+    @property
+    def tooltip(self) -> str | None:
+        """Read/write. The ScreenTip text shown on hover over this run.
+
+        Closes scanny/python-pptx#1022 and #425. Returns |None| when no
+        `a:hlinkClick` is present or its `tooltip` attribute is unset/empty.
+        Assigning a string creates the `a:hlinkClick` if necessary.
+        Assigning |None| or `""` removes the tooltip, pruning the element
+        if it carries no URL/action.
+
+        Known PowerPoint limitation: this ScreenTip is only rendered on
+        hover when the run's hyperlink also carries a real navigation
+        target (URL, slide jump, macro, program). A tooltip-only hyperlink
+        round-trips through save/reload but PowerPoint will not surface it
+        on hover. There is no known fully-supported workaround at the OOXML
+        layer for a no-click-action hover ScreenTip.
+        """
+        hlink = self._hlinkClick
+        if hlink is None:
+            return None
+        return hlink.tooltip or None
+
+    @tooltip.setter
+    def tooltip(self, value: str | None) -> None:
+        from pptx.action import (
+            _ensure_noaction_if_inert,
+            _ensure_noaction_pruned,
+            _prune_hlink_if_empty,
+        )
+
+        if not value:
+            hlink = self._hlinkClick
+            if hlink is None:
+                return
+            hlink.tooltip = None
+            _ensure_noaction_pruned(hlink)
+            _prune_hlink_if_empty(self._rPr, hlink)
+            return
+        hlink = self._rPr.get_or_add_hlinkClick()
+        # -- PowerPoint requires r:id on every hlinkClick (even empty) — without
+        # -- it, the load-time validator triggers a Repair dialog and strips the
+        # -- element. Mirror the precedent in oxml/shapes/picture.py:220.
+        if hlink.rId is None:
+            hlink.rId = ""
+        hlink.tooltip = value
+        # -- Emit the ppaction://noaction marker on an inert hlink so the
+        # -- output matches PowerPoint's own emission and survives future
+        # -- validators. Note: the marker does NOT make PowerPoint render
+        # -- the tooltip on hover — that requires a real action target
+        # -- (URL/jump/macro). See BaseShape.alt_text (cNvPr/@descr) for
+        # -- a pure hover ScreenTip on a non-hyperlink shape.
+        _ensure_noaction_if_inert(hlink)
 
     def _add_hlinkClick(self, url: str):
         rId = self.part.relate_to(url, RT.HYPERLINK, is_external=True)
@@ -1268,6 +1338,23 @@ class _Run(Subshape):
         """
         rPr = self._r.get_or_add_rPr()
         return _Hyperlink(rPr, self)
+
+    @lazyproperty
+    def click_action(self):
+        """An |ActionSetting| for the click behavior of this run.
+
+        Unifies the run hyperlink surface with the shape ``click_action``
+        surface (closes scanny/python-pptx#455). The same |ActionSetting|
+        machinery used by ``shape.click_action`` operates on the run's
+        `a:rPr`, so a run can be a slideshow jump-to-slide (closes #1077),
+        run-program, run-macro, or play-sound trigger — e.g.
+        ``run.click_action.target_slide = slides[4]`` or
+        ``run.click_action.run_macro("Recalc")``.
+        """
+        from pptx.action import ActionSetting
+
+        rPr = self._r.get_or_add_rPr()
+        return ActionSetting(rPr, self)
 
     @property
     def text(self):
