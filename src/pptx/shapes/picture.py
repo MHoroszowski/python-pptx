@@ -189,6 +189,18 @@ class Picture(_BasePicture):
             raise ValueError("no embedded image")
         return slide_part.get_image(rId)
 
+    @lazyproperty
+    def hyperlink(self):
+        """The |Hyperlink| object for the click action on this picture.
+
+        Closes scanny/python-pptx#576 and #962 — pictures could not carry a
+        hyperlink without manipulating XML directly. ``picture.hyperlink`` is
+        the same proxy returned by ``picture.click_action.hyperlink``, bound to
+        the picture's `p:nvPicPr/p:cNvPr`, so ``picture.hyperlink.address`` and
+        ``picture.hyperlink.tooltip`` work exactly as they do on a text run.
+        """
+        return self.click_action.hyperlink
+
     @property
     def shape_type(self) -> MSO_SHAPE_TYPE:
         """Unconditionally `MSO_SHAPE_TYPE.PICTURE` in this case."""
